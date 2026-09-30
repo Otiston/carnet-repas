@@ -198,6 +198,18 @@ function route() {
 const goDay = (day) => (location.hash = `#jour/${day}`);
 const goMonth = (month) => (location.hash = `#calendrier/${month}`);
 
+/**
+ * Adresses d'affichage des photos des lignes données : repas pour tout le monde,
+ * balance seulement pour le propriétaire connecté (stockage privé).
+ */
+async function photoUrlsFor(rows, foodKey, weighKey) {
+  const urls = api.photoUrls(rows.map((r) => r[foodKey]));
+  if (state.canEdit) {
+    for (const [path, url] of await api.privatePhotoUrls(rows.map((r) => r[weighKey]))) urls.set(path, url);
+  }
+  return urls;
+}
+
 // --- Vue calendrier ----------------------------------------------------------
 
 async function renderCalendar() {
@@ -216,7 +228,7 @@ async function renderCalendar() {
   let urls;
   try {
     rows = await api.loadDays(start, end);
-    urls = api.photoUrls([...rows.values()].flatMap((r) => [r.food_thumb, r.weigh_thumb]));
+    urls = await photoUrlsFor([...rows.values()], "food_thumb", "weigh_thumb");
   } catch (err) {
     grid.classList.remove("loading");
     toast(errorMessage(err), "error");
@@ -281,9 +293,14 @@ async function renderDay({ refresh = false } = {}) {
       toast(errorMessage(err), "error");
     }
   }
-  if (state.day !== day || state.view !== "jour") return;
   const row = rowFor(day);
-  const urls = api.photoUrls([row?.food_path, row?.weigh_path]);
+  let urls = new Map();
+  try {
+    urls = await photoUrlsFor(row ? [row] : [], "food_path", "weigh_path");
+  } catch (err) {
+    toast(errorMessage(err), "error");
+  }
+  if (state.day !== day || state.view !== "jour") return;
 
   const cards = state.canEdit
     ? [
@@ -360,7 +377,7 @@ async function addFood(day, camera) {
     const old = rowFor(day);
     const paths = await api.uploadPhoto(day, "repas", full, thumb);
     await saveFields(day, { food_path: paths.path, food_thumb: paths.thumb });
-    api.removeFiles([old?.food_path, old?.food_thumb]).catch(() => {});
+    api.removeFiles("repas", [old?.food_path, old?.food_thumb]).catch(() => {});
     toast(`Photo du repas enregistrée (${shortDate(day)}) ✓`);
   } catch (err) {
     toast(errorMessage(err), "error");
@@ -375,7 +392,7 @@ async function deleteFood(day) {
   const old = rowFor(day);
   try {
     await saveFields(day, { food_path: null, food_thumb: null });
-    await api.removeFiles([old?.food_path, old?.food_thumb]);
+    await api.removeFiles("repas", [old?.food_path, old?.food_thumb]);
     toast("Photo supprimée");
   } catch (err) {
     toast(errorMessage(err), "error");
@@ -816,9 +833,8 @@ function weighCard(day, row, urls) {
     h("img", { class: "photo small-photo", src: photoUrl, alt: "Photo de la balance", onclick: () => openLightbox(photoUrl) });
   const bigWeight = weight != null && h("p", { class: "weight" }, formatKg(weight));
 
-  if (!state.canEdit) {
-    return photoUrl || weight != null ? card("weigh", "⚖️", title, h("div", { class: "weigh-view" }, photo, bigWeight)) : null;
-  }
+  // Visiteurs : le poids seulement ; la photo de la balance est privée.
+  if (!state.canEdit) return weight != null ? card("weigh", "⚖️", title, bigWeight) : null;
 
   // La photo et le poids s'enregistrent chacun de leur côté : la photo part dès qu'elle est prise,
   // pour ne pas la perdre si le téléphone recharge la page pendant la saisie.
@@ -904,7 +920,7 @@ async function addWeighPhoto(day, camera) {
     const old = rowFor(day);
     const paths = await api.uploadPhoto(day, "pesee", full, thumb);
     await saveFields(day, { weigh_path: paths.path, weigh_thumb: paths.thumb });
-    api.removeFiles([old?.weigh_path, old?.weigh_thumb]).catch(() => {});
+    api.removeFiles("pesee", [old?.weigh_path, old?.weigh_thumb]).catch(() => {});
     toast("Photo de la balance enregistrée ✓");
   } catch (err) {
     toast(errorMessage(err), "error");
@@ -950,7 +966,7 @@ async function deleteWeigh(day) {
   const old = rowFor(day);
   try {
     await saveFields(day, { weight_kg: null, weigh_path: null, weigh_thumb: null });
-    await api.removeFiles([old?.weigh_path, old?.weigh_thumb]);
+    await api.removeFiles("pesee", [old?.weigh_path, old?.weigh_thumb]);
     toast("Pesée supprimée");
   } catch (err) {
     toast(errorMessage(err), "error");

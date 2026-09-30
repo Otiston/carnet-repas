@@ -3,9 +3,14 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_KEY } from "./config.js?v=__VERSION__";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const BUCKET = "photos";
+// Photos des repas : lisibles par tous. Photos de la balance : propriétaire seulement.
+const PUBLIC_BUCKET = "photos";
+const PRIVATE_BUCKET = "pesees";
+const bucketFor = (kind) => (kind === "pesee" ? PRIVATE_BUCKET : PUBLIC_BUCKET);
+const SIGNED_URL_SECONDS = 60 * 60;
 
 let userId = null;
+const signedCache = new Map(); // chemin -> { url, expires }
 
 // --- Connexion -------------------------------------------------------------
 
@@ -69,35 +74,55 @@ export async function deleteDay(day) {
 
 // --- Photos ----------------------------------------------------------------
 
-/** Envoie la photo et sa miniature ; renvoie leurs chemins dans le bucket. */
+/** Envoie la photo et sa miniature ; renvoie leurs chemins. `kind` : "repas" ou "pesee". */
 export async function uploadPhoto(day, kind, full, thumb) {
+  const bucket = supabase.storage.from(bucketFor(kind));
   const base = `${userId}/${day}/${kind}-${Date.now()}`;
   const path = `${base}.jpg`;
   const thumbPath = `${base}-mini.jpg`;
   // Chaque photo a un nom unique : le navigateur peut la garder en cache un an.
   const options = { contentType: "image/jpeg", upsert: false, cacheControl: "31536000" };
-  const results = await Promise.all([
-    supabase.storage.from(BUCKET).upload(path, full, options),
-    supabase.storage.from(BUCKET).upload(thumbPath, thumb, options),
-  ]);
+  const results = await Promise.all([bucket.upload(path, full, options), bucket.upload(thumbPath, thumb, options)]);
   const failed = results.find((r) => r.error);
   if (failed) {
-    await removeFiles([path, thumbPath]);
+    await removeFiles(kind, [path, thumbPath]);
     throw failed.error;
   }
   return { path, thumb: thumbPath };
 }
 
-export async function removeFiles(paths) {
+export async function removeFiles(kind, paths) {
   const list = paths.filter(Boolean);
   if (!list.length) return;
-  await supabase.storage.from(BUCKET).remove(list);
+  for (const p of list) signedCache.delete(p);
+  await supabase.storage.from(bucketFor(kind)).remove(list);
+  // Les photos de balance d'avant le stockage privé étaient dans le bucket public.
+  if (kind === "pesee") await supabase.storage.from(PUBLIC_BUCKET).remove(list);
 }
 
-/** Adresses publiques des photos (le bucket est lisible par tous). */
+/** Adresses publiques des photos de repas. */
 export function photoUrls(paths) {
-  const bucket = supabase.storage.from(BUCKET);
+  const bucket = supabase.storage.from(PUBLIC_BUCKET);
   return new Map(paths.filter(Boolean).map((p) => [p, bucket.getPublicUrl(p).data.publicUrl]));
+}
+
+/** Adresses temporaires (1 h) des photos de balance, pour le propriétaire connecté seulement. */
+export async function privatePhotoUrls(paths) {
+  const now = Date.now();
+  const wanted = [...new Set(paths.filter(Boolean))];
+  const missing = wanted.filter((p) => !(signedCache.get(p)?.expires > now));
+  if (missing.length) {
+    const { data, error } = await supabase.storage
+      .from(PRIVATE_BUCKET)
+      .createSignedUrls(missing, SIGNED_URL_SECONDS);
+    if (error) throw error;
+    for (const item of data) {
+      if (item.signedUrl) {
+        signedCache.set(item.path, { url: item.signedUrl, expires: now + (SIGNED_URL_SECONDS - 120) * 1000 });
+      }
+    }
+  }
+  return new Map(wanted.filter((p) => signedCache.has(p)).map((p) => [p, signedCache.get(p).url]));
 }
 
 // --- Lecture de recette ----------------------------------------------------
