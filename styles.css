@@ -429,6 +429,9 @@ textarea {
 .weigh-form .actions {
   margin-top: 0;
 }
+.weigh-weight {
+  margin-top: 0.9rem;
+}
 .weigh-view {
   display: flex;
   align-items: center;

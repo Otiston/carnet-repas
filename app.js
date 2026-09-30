@@ -144,13 +144,12 @@ function freshDraft() {
   return {
     busy: new Set(), // "food" | "recipe" | "weigh"
     recipe: { mode: "idle", pages: [], processing: 0, pasted: "", form: null, fromAI: false }, // idle | pages | reading | paste | edit
-    weigh: { editing: false, photo: null, preview: null, weight: "" },
+    weigh: { editing: false, weight: "" },
   };
 }
 
 function resetDraft() {
   for (const page of state.draft.recipe.pages) URL.revokeObjectURL(page.url);
-  if (state.draft.weigh.preview) URL.revokeObjectURL(state.draft.weigh.preview);
   state.draft = freshDraft();
 }
 
@@ -810,52 +809,48 @@ async function deleteRecipe(day) {
 function weighCard(day, row, urls) {
   const draft = state.draft.weigh;
   const title = "Pesée du mardi";
-  const savedUrl = row?.weigh_path && urls.get(row.weigh_path);
-  const hasSaved = row?.weight_kg != null || savedUrl;
-  const details = () =>
-    h(
-      "div",
-      { class: "weigh-view" },
-      savedUrl && h("img", { class: "photo small-photo", src: savedUrl, alt: "Photo de la balance", onclick: () => openLightbox(savedUrl) }),
-      row.weight_kg != null && h("p", { class: "weight" }, formatKg(row.weight_kg)),
-    );
+  const photoUrl = row?.weigh_path && urls.get(row.weigh_path);
+  const weight = row?.weight_kg;
+  const photo =
+    photoUrl &&
+    h("img", { class: "photo small-photo", src: photoUrl, alt: "Photo de la balance", onclick: () => openLightbox(photoUrl) });
+  const bigWeight = weight != null && h("p", { class: "weight" }, formatKg(weight));
 
-  if (!state.canEdit) return hasSaved ? card("weigh", "⚖️", title, details()) : null;
-  if (state.draft.busy.has("weigh")) return card("weigh", "⚖️", title, spinner("Enregistrement…"));
-
-  if (hasSaved && !draft.editing) {
-    return card(
-      "weigh",
-      "⚖️",
-      title,
-      details(),
-      h(
-        "div",
-        { class: "actions" },
-        h("button", { onclick: () => editWeigh(row) }, "Modifier"),
-        h("button", { class: "danger", onclick: () => deleteWeigh(day) }, "Supprimer"),
-      ),
-    );
+  if (!state.canEdit) {
+    return photoUrl || weight != null ? card("weigh", "⚖️", title, h("div", { class: "weigh-view" }, photo, bigWeight)) : null;
   }
 
-  const preview = draft.preview ?? savedUrl;
-  return card(
-    "weigh",
-    "⚖️",
-    title,
-    h(
+  // La photo et le poids s'enregistrent chacun de leur côté : la photo part dès qu'elle est prise,
+  // pour ne pas la perdre si le téléphone recharge la page pendant la saisie.
+  const photoPart = state.draft.busy.has("weigh-photo")
+    ? spinner("Envoi de la photo…")
+    : [
+        photo,
+        photoButtons((camera) => addWeighPhoto(day, camera), {
+          cameraLabel: photoUrl ? "Reprendre la photo" : "Photo de la balance",
+        }),
+      ];
+
+  let weightPart;
+  if (state.draft.busy.has("weigh-weight")) {
+    weightPart = spinner("Enregistrement du poids…");
+  } else if (weight != null && !draft.editing) {
+    weightPart = h(
+      "div",
+      { class: "weigh-view" },
+      bigWeight,
+      h("button", { onclick: () => editWeight(weight) }, "Modifier le poids"),
+    );
+  } else {
+    weightPart = h(
       "form",
       {
         class: "weigh-form",
         onsubmit: (e) => {
           e.preventDefault();
-          saveWeigh(day);
+          saveWeight(day);
         },
       },
-      preview && h("img", { class: "photo small-photo", src: preview, alt: "Photo de la balance" }),
-      photoButtons((camera) => pickWeighPhoto(camera), {
-        cameraLabel: preview ? "Reprendre la photo" : "Photo de la balance",
-      }),
       h(
         "label",
         { class: "field weight-field" },
@@ -878,63 +873,74 @@ function weighCard(day, row, urls) {
       h(
         "div",
         { class: "actions" },
-        h("button", { class: "primary big", type: "submit" }, "Enregistrer la pesée"),
-        draft.editing && h("button", { type: "button", class: "ghost", onclick: cancelWeigh }, "Annuler"),
+        h("button", { class: "primary", type: "submit" }, "Enregistrer le poids"),
+        draft.editing && h("button", { type: "button", class: "ghost", onclick: cancelWeight }, "Annuler"),
       ),
-    ),
+    );
+  }
+
+  return card(
+    "weigh",
+    "⚖️",
+    title,
+    photoPart,
+    h("div", { class: "weigh-weight" }, weightPart),
+    (photoUrl || weight != null) &&
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { class: "danger", onclick: () => deleteWeigh(day) }, "Supprimer la pesée"),
+      ),
   );
 }
 
-async function pickWeighPhoto(camera) {
+async function addWeighPhoto(day, camera) {
   const [file] = await pickImages({ camera });
   if (!file) return;
-  const draft = state.draft.weigh;
-  if (draft.preview) URL.revokeObjectURL(draft.preview);
-  draft.photo = file;
-  draft.preview = URL.createObjectURL(file);
-  renderDay();
-}
-
-function editWeigh(row) {
-  const draft = state.draft.weigh;
-  draft.editing = true;
-  draft.weight = row.weight_kg != null ? String(row.weight_kg).replace(".", ",") : "";
-  renderDay();
-}
-
-function cancelWeigh() {
-  if (state.draft.weigh.preview) URL.revokeObjectURL(state.draft.weigh.preview);
-  state.draft.weigh = { editing: false, photo: null, preview: null, weight: "" };
-  renderDay();
-}
-
-async function saveWeigh(day) {
-  const draft = state.draft.weigh;
-  const weight = Number(draft.weight.replace(",", ".").replace(/[^\d.]/g, ""));
-  if (!weight || weight < 20 || weight > 400) {
-    toast("Indique un poids valide (ex. 72,4).", "error");
-    return;
-  }
-  state.draft.busy.add("weigh");
+  state.draft.busy.add("weigh-photo");
   renderDay();
   try {
-    const fields = { weight_kg: Math.round(weight * 10) / 10 };
+    const [full, thumb] = await photoVersions(file);
     const old = rowFor(day);
-    if (draft.photo) {
-      const [full, thumb] = await photoVersions(draft.photo);
-      const paths = await api.uploadPhoto(day, "pesee", full, thumb);
-      fields.weigh_path = paths.path;
-      fields.weigh_thumb = paths.thumb;
-    }
-    await saveFields(day, fields);
-    if (draft.photo) api.removeFiles([old?.weigh_path, old?.weigh_thumb]).catch(() => {});
-    if (draft.preview) URL.revokeObjectURL(draft.preview);
-    state.draft.weigh = { editing: false, photo: null, preview: null, weight: "" };
-    toast(`Pesée enregistrée : ${formatKg(fields.weight_kg)} ✓`);
+    const paths = await api.uploadPhoto(day, "pesee", full, thumb);
+    await saveFields(day, { weigh_path: paths.path, weigh_thumb: paths.thumb });
+    api.removeFiles([old?.weigh_path, old?.weigh_thumb]).catch(() => {});
+    toast("Photo de la balance enregistrée ✓");
   } catch (err) {
     toast(errorMessage(err), "error");
   } finally {
-    state.draft.busy.delete("weigh");
+    state.draft.busy.delete("weigh-photo");
+    renderDay();
+  }
+}
+
+function editWeight(weight) {
+  state.draft.weigh = { editing: true, weight: String(weight).replace(".", ",") };
+  renderDay();
+}
+
+function cancelWeight() {
+  state.draft.weigh = { editing: false, weight: "" };
+  renderDay();
+}
+
+async function saveWeight(day) {
+  const value = Number(state.draft.weigh.weight.replace(",", ".").replace(/[^\d.]/g, ""));
+  if (!value || value < 20 || value > 400) {
+    toast("Indique un poids valide (ex. 72,4).", "error");
+    return;
+  }
+  const weight_kg = Math.round(value * 10) / 10;
+  state.draft.busy.add("weigh-weight");
+  renderDay();
+  try {
+    await saveFields(day, { weight_kg });
+    state.draft.weigh = { editing: false, weight: "" };
+    toast(`Poids enregistré : ${formatKg(weight_kg)} ✓`);
+  } catch (err) {
+    toast(errorMessage(err), "error");
+  } finally {
+    state.draft.busy.delete("weigh-weight");
     renderDay();
   }
 }
@@ -966,7 +972,7 @@ function isIdle() {
   const { busy, recipe, weigh } = state.draft;
   const typing = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
   return (
-    !busy.size && !pickerOpen && !typing && recipe.mode === "idle" && !weigh.editing && !weigh.photo && !weigh.weight
+    !busy.size && !pickerOpen && !typing && recipe.mode === "idle" && !weigh.editing && !weigh.weight
   );
 }
 

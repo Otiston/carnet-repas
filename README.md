@@ -86,7 +86,7 @@ Changer une clé (par exemple une nouvelle clé Gemini) : mets à jour le secret
 - **Recette** : 📷 *Photographier la recette*. Si la liste d'ingrédients est sur l'autre face, ajoute-la avec *Autre page*, puis ✨ *Lire la recette*. Relis le résultat, corrige si besoin, puis *Enregistrer la recette*.
 - **Si Gemini ne répond pas** (quota atteint, modèle retiré…) : ↗️ *Envoyer à une app IA*. Le menu de partage du téléphone s'ouvre : choisis Claude, ChatGPT ou Gemini. La photo part avec la consigne, qui est aussi copiée au cas où l'app ne la reprendrait pas. Dans l'app, copie la réponse, reviens sur le site, 📋 *Coller*, puis *Remplir la recette*.
 - Tu peux aussi coller une réponse d'IA obtenue autrement (📋 *Coller une réponse d'IA*) ou écrire la recette à la main.
-- **Pesée (mardi)** : photo de la balance, saisie du poids, puis *Enregistrer la pesée*.
+- **Pesée (mardi)** : 📷 *Photo de la balance* (enregistrée tout de suite), puis tape le poids et *Enregistrer le poids*. L'ordre n'a pas d'importance.
 - Pour remplir un autre jour, change la date avec les flèches ‹ › ou le sélecteur de date.
 
 ## Tester sur le PC (facultatif)
@@ -108,6 +108,6 @@ Ouvre <http://localhost:8000>. En local, le bas de page affiche « Version local
 | Déploiement rouge à « Site web » | Vérifie que **Settings** → **Pages** → **Source** est bien sur **GitHub Actions** (étape 6). |
 | « Email ou mot de passe incorrect » | Vérifie que l'utilisateur est bien confirmé (Authentication → Users). |
 | « Clé Gemini invalide » | Corrige le secret `GEMINI_API_KEY` dans GitHub, puis **Run workflow**. |
-| « Quota gratuit de Gemini atteint » | Réessaie plus tard, ou passe par ↗️ *Envoyer à une app IA*. |
-| « Modèle … introuvable » | Google a retiré ce modèle : remplace `MODEL` dans `supabase/functions/lire-recette/index.ts` par un modèle *Flash* gratuit plus récent (liste sur <https://ai.google.dev/gemini-api/docs/pricing>), puis `git push`. En attendant, utilise ↗️ *Envoyer à une app IA*. |
+| « Gemini est surchargé » ou « Quota gratuit de Gemini atteint » | Les 3 modèles gratuits essayés à la suite étaient saturés. Réessaie dans quelques minutes, ou passe par ↗️ *Envoyer à une app IA*. |
+| Les erreurs Gemini reviennent tous les jours | Google a peut-être retiré un modèle : demande à Claude de mettre à jour la liste `MODELS` dans `supabase/functions/lire-recette/index.ts` (modèles *Flash* gratuits sur <https://ai.google.dev/gemini-api/docs/pricing>). |
 | Le projet Supabase est « paused » | Les projets gratuits se mettent en pause après 7 jours sans utilisation : clique **Restore** dans le tableau de bord. |

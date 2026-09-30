@@ -5,11 +5,14 @@
 
 import { withSupabase } from "npm:@supabase/server@1";
 
-// Modèle inclus dans l'offre gratuite. S'il est retiré un jour, remplace-le par un modèle
-// « Flash » plus récent listé sur https://ai.google.dev/gemini-api/docs/pricing.
-const MODEL = "gemini-3.8-flash";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Modèles de l'offre gratuite, essayés dans l'ordre : si l'un est surchargé, épuisé
+// ou retiré, on passe au suivant. Liste à jour sur https://ai.google.dev/gemini-api/docs/pricing.
+const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 const MAX_IMAGES = 4;
+// Temps maximum par modèle : l'ensemble reste sous la limite de 150 s des Edge Functions.
+const ATTEMPT_TIMEOUT_MS = 40_000;
+// Erreurs pour lesquelles un autre modèle a des chances de répondre.
+const TRY_NEXT = new Set([404, 408, 429, 500, 502, 503, 504]);
 
 const RECIPE_SCHEMA = {
   type: "object",
@@ -58,45 +61,56 @@ export default {
       return error(400, "Photo invalide.");
     }
 
-    let res: Response;
-    try {
-      res = await fetch(ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                ...images.map((data) => ({ inlineData: { mimeType: "image/jpeg", data } })),
-                { text: PROMPT },
-              ],
-            },
+    const request = JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            ...images.map((data) => ({ inlineData: { mimeType: "image/jpeg", data } })),
+            { text: PROMPT },
           ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseJsonSchema: RECIPE_SCHEMA,
-          },
-        }),
-      });
-    } catch {
-      return error(502, "Gemini ne répond pas, réessaie plus tard.");
-    }
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseJsonSchema: RECIPE_SCHEMA,
+      },
+    });
 
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      const detail = body?.error?.message ?? `HTTP ${res.status}`;
-      console.error("Gemini", res.status, detail);
-      if (res.status === 429) {
-        return error(429, "Quota gratuit de Gemini atteint pour le moment, réessaie plus tard.");
+    // deno-lint-ignore no-explicit-any
+    let body: any = null;
+    let lastStatus = 0;
+    for (const model of MODELS) {
+      let res: Response;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: request,
+          signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+        });
+      } catch (err) {
+        console.error("Gemini", model, "sans réponse :", String(err));
+        lastStatus = 504;
+        continue;
       }
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        body = json;
+        break;
+      }
+      const detail = json?.error?.message ?? `HTTP ${res.status}`;
+      console.error("Gemini", model, res.status, detail);
+      lastStatus = res.status;
       if (res.status === 401 || res.status === 403 || (res.status === 400 && /api key/i.test(detail))) {
         return error(500, "Clé Gemini invalide : vérifie le secret GEMINI_API_KEY.");
       }
-      if (res.status === 404) {
-        return error(500, `Modèle ${MODEL} introuvable : mets à jour MODEL dans la fonction.`);
-      }
-      return error(502, `Erreur Gemini : ${detail}`);
+      if (!TRY_NEXT.has(res.status)) return error(502, `Erreur Gemini : ${detail}`);
+    }
+    if (!body) {
+      return lastStatus === 429
+        ? error(429, "Quota gratuit de Gemini atteint pour le moment, réessaie plus tard.")
+        : error(503, "Gemini est surchargé en ce moment, réessaie dans quelques minutes.");
     }
 
     const candidate = body?.candidates?.[0];
