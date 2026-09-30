@@ -7,8 +7,9 @@ const MAX_RECIPE_PAGES = 4;
 
 // Consigne envoyée avec la photo aux apps de chat (Claude, ChatGPT, Gemini…) quand on
 // passe par elles au lieu de la lecture automatique ; le format est relu par parseRecipeText.
-const CHAT_PROMPT = `Réécris cette fiche recette simplement, en français, exactement dans ce format, sans rien avant ni après :
+const CHAT_PROMPT = `Réécris cette fiche recette simplement, d'abord en français puis traduite en anglais, exactement dans ce format, en texte simple (pas de tableau), sans rien avant ni après :
 
+=== FRANÇAIS ===
 TITRE : nom du plat
 PORTIONS : nombre de personnes (vide si absent)
 INGRÉDIENTS :
@@ -17,7 +18,16 @@ INGRÉDIENTS :
 1. étape courte
 NOTE : astuce utile (vide si aucune)
 
-Liste tous les ingrédients, y compris ceux cités seulement dans les étapes (beurre, huile, sel, poivre, sucre, eau…), sans inventer de quantité illisible. Retire les titres décoratifs mais garde les durées, feux, tailles de découpe et mentions « par personne ».`;
+=== ENGLISH ===
+TITLE: dish name
+SERVINGS: number of servings (empty if absent)
+INGREDIENTS:
+- quantity ingredient
+STEPS:
+1. short step
+NOTE: useful tip (empty if none)
+
+Liste tous les ingrédients, y compris ceux cités seulement dans les étapes (beurre, huile, sel, poivre, sucre, eau…), sans inventer de quantité illisible. Retire les titres décoratifs mais garde les durées, feux, tailles de découpe et mentions « par personne ». En anglais, écris « tsp » pour « cc » et « tbsp » pour « cs ».`;
 
 /** Crée un élément DOM ; les enfants texte sont insérés comme texte (jamais comme HTML). */
 function h(tag, props, ...children) {
@@ -188,8 +198,17 @@ function toBase64(blob) {
 
 // --- État --------------------------------------------------------------------
 
+function savedRecipeLang() {
+  try {
+    return localStorage.getItem("recipe-lang") === "en" ? "en" : "fr";
+  } catch {
+    return "fr";
+  }
+}
+
 const state = {
   canEdit: false, // vrai quand le propriétaire est connecté ; sinon consultation seule
+  recipeLang: savedRecipeLang(), // langue d'affichage des recettes : "fr" | "en"
   view: "jour", // "jour" | "calendrier"
   day: todayStr(),
   month: todayStr().slice(0, 7), // YYYY-MM
@@ -321,7 +340,7 @@ async function renderCalendar() {
               h("span", {}, formatWeight(row.weight_kg), h("span", { class: "unit" }, " kg")),
           ),
         row?.recipe &&
-          h("span", { class: "cell-recipe", title: row.recipe.titre }, h("span", {}, row.recipe.titre || "Recette")),
+          h("span", { class: "cell-recipe", title: recipeTitle(row.recipe) }, h("span", {}, recipeTitle(row.recipe))),
       ),
     );
   }
@@ -359,15 +378,15 @@ async function renderDay({ refresh = false } = {}) {
   }
   if (state.day !== day || state.view !== "jour") return;
 
-  const cards = state.canEdit
-    ? [
-        foodCard(day, row, urls),
-        recipeCard(day, row),
-        isTuesday(day)
-          ? weighCard(day, row, urls)
-          : h("p", { class: "muted center small" }, "⚖️ La pesée s'ajoute le mardi."),
-      ]
-    : [foodCard(day, row, urls), recipeCard(day, row), weighCard(day, row, urls)].filter(Boolean);
+  const food = foodCard(day, row, urls);
+  const recipe = recipeCard(day, row);
+  const weigh =
+    state.canEdit && !isTuesday(day)
+      ? h("p", { class: "muted center small weigh-hint" }, "⚖️ La pesée s'ajoute le mardi.")
+      : weighCard(day, row, urls);
+  // Sur grand écran : photo (et pesée) à gauche, recette à droite.
+  body.classList.toggle("split", Boolean((food || weigh) && recipe));
+  const cards = [food, recipe, weigh].filter(Boolean);
   body.replaceChildren(...(cards.length ? cards : [h("p", { class: "muted center" }, "Rien de noté ce jour-là.")]));
 }
 
@@ -459,16 +478,91 @@ async function deleteFood(day) {
 }
 
 // Recette -------------------------------------------------------------------
+//
+// Une recette est enregistrée en français, avec sa traduction anglaise dans `en` :
+// { titre, portions, ingredients[], etapes[], note, en: { title, servings, ingredients[], steps[], note } }
 
+const RECIPE_LABELS = {
+  fr: { ingredients: "Ingrédients", steps: "Étapes", untitled: "Recette sans titre" },
+  en: { ingredients: "Ingredients", steps: "Steps", untitled: "Untitled recipe" },
+};
+
+/** Contenu de la recette dans une langue, ou null si cette langue est vide. */
+function recipeIn(r, lang) {
+  const v =
+    lang === "en"
+      ? { title: r?.en?.title, servings: r?.en?.servings, ingredients: r?.en?.ingredients ?? [], steps: r?.en?.steps ?? [], note: r?.en?.note }
+      : { title: r?.titre, servings: r?.portions, ingredients: r?.ingredients ?? [], steps: r?.etapes ?? [], note: r?.note };
+  return v.title || v.ingredients.length || v.steps.length ? v : null;
+}
+
+/** Langue affichée : celle choisie si la recette l'a, sinon l'autre. */
+const shownLang = (r) => (recipeIn(r, state.recipeLang) ? state.recipeLang : state.recipeLang === "en" ? "fr" : "en");
+const recipeTitle = (r) => recipeIn(r, shownLang(r))?.title || RECIPE_LABELS[shownLang(r)].untitled;
+
+function setRecipeLang(lang) {
+  state.recipeLang = lang;
+  try {
+    localStorage.setItem("recipe-lang", lang);
+  } catch {
+    // stockage indisponible : le choix vaut pour cette visite seulement
+  }
+  renderDay();
+}
+
+function langToggle() {
+  return h(
+    "div",
+    { class: "lang-toggle", role: "group", "aria-label": "Langue de la recette" },
+    ["fr", "en"].map((lang) =>
+      h(
+        "button",
+        {
+          class: state.recipeLang === lang ? "active" : "",
+          "aria-pressed": String(state.recipeLang === lang),
+          onclick: () => setRecipeLang(lang),
+        },
+        lang.toUpperCase(),
+      ),
+    ),
+  );
+}
+
+/** Affichage : titre (+ FR | EN), puis ingrédients à gauche et étapes à droite. */
 function recipeDetails(r) {
+  const lang = shownLang(r);
+  const v = recipeIn(r, lang) ?? { ingredients: [], steps: [] };
+  const t = RECIPE_LABELS[lang];
+  const bilingual = recipeIn(r, "fr") && recipeIn(r, "en");
   return [
-    h("h4", { class: "recipe-title" }, r.titre || "Recette sans titre"),
-    r.portions && h("p", { class: "muted small" }, r.portions),
-    r.ingredients?.length > 0 &&
-      h("div", {}, h("h5", {}, "Ingrédients"), h("ul", { class: "ingredients" }, r.ingredients.map((i) => h("li", {}, i)))),
-    r.etapes?.length > 0 &&
-      h("div", {}, h("h5", {}, "Étapes"), h("ol", { class: "steps" }, r.etapes.map((s) => h("li", {}, s)))),
-    r.note && h("p", { class: "note" }, "💡 ", r.note),
+    h(
+      "div",
+      { class: "recipe-head" },
+      h("h4", { class: "recipe-title", lang }, v.title || t.untitled),
+      bilingual && langToggle(),
+    ),
+    v.servings && h("p", { class: "muted small", lang }, v.servings),
+    h(
+      "div",
+      { class: "recipe-columns", lang },
+      h(
+        "div",
+        { class: "recipe-col" },
+        h("h5", {}, t.ingredients),
+        v.ingredients.length
+          ? h("ul", { class: "ingredients" }, v.ingredients.map((i) => h("li", {}, i)))
+          : h("p", { class: "muted small" }, "—"),
+      ),
+      h(
+        "div",
+        { class: "recipe-col recipe-steps" },
+        h("h5", {}, t.steps),
+        v.steps.length
+          ? h("ol", { class: "steps" }, v.steps.map((s) => h("li", {}, s)))
+          : h("p", { class: "muted small" }, "—"),
+      ),
+    ),
+    v.note && h("p", { class: "note", lang }, "💡 ", v.note),
   ];
 }
 
@@ -484,18 +578,35 @@ function recipeCard(day, row) {
       "recipe",
       "📖",
       title,
-      spinner("Lecture de la recette… (10 à 30 secondes)"),
+      spinner("Lecture et traduction de la recette… (10 à 40 secondes)"),
       pageStrip(false),
     );
   }
 
   if (draft.mode === "pages") {
     const full = draft.pages.length >= MAX_RECIPE_PAGES;
+    const disabled = draft.processing > 0 || !draft.pages.length;
+    const readButton = h(
+      "button",
+      { class: draft.aiFailed ? "" : "primary big", disabled, onclick: () => readRecipe(day) },
+      draft.aiFailed ? "✨ Réessayer Gemini" : "✨ Lire la recette",
+    );
+    const shareButton = h(
+      "button",
+      { class: draft.aiFailed ? "primary big" : "", disabled, onclick: shareRecipe },
+      "↗️ Envoyer à une app IA",
+    );
     return card(
       "recipe",
       "📖",
       title,
-      h("p", { class: "muted small" }, "Ajoute le recto et le verso si la liste d'ingrédients est sur une autre face."),
+      draft.aiFailed
+        ? h(
+            "p",
+            { class: "hint" },
+            `Gemini n'est pas disponible : ${draft.aiFailed} Envoie plutôt la photo à ChatGPT (ou Claude) avec ↗️, puis colle sa réponse : la recette se remplira toute seule, en français et en anglais.`,
+          )
+        : h("p", { class: "muted small" }, "Ajoute le recto et le verso si la liste d'ingrédients est sur une autre face."),
       pageStrip(true),
       draft.processing > 0 && spinner("Préparation de la photo…"),
       !full &&
@@ -506,20 +617,7 @@ function recipeCard(day, row) {
       h(
         "div",
         { class: "actions" },
-        h(
-          "button",
-          {
-            class: "primary big",
-            disabled: draft.processing > 0 || !draft.pages.length,
-            onclick: () => readRecipe(day),
-          },
-          "✨ Lire la recette",
-        ),
-        h(
-          "button",
-          { disabled: draft.processing > 0 || !draft.pages.length, onclick: shareRecipe },
-          "↗️ Envoyer à une app IA",
-        ),
+        draft.aiFailed ? [shareButton, readButton] : [readButton, shareButton],
         h("button", { class: "ghost", onclick: cancelRecipe }, "Annuler"),
       ),
     );
@@ -624,7 +722,7 @@ async function readRecipe(day) {
     draft.mode = "edit";
   } catch (err) {
     if (state.draft.recipe !== draft) return;
-    toast(`${errorMessage(err)} Tu peux aussi utiliser « Envoyer à une app IA ».`, "error");
+    draft.aiFailed = errorMessage(err);
     draft.mode = "pages";
   }
   renderDay();
@@ -677,7 +775,11 @@ function pasteForm() {
         fillFromPaste();
       },
     },
-    h("p", { class: "hint" }, "Dans l'app (Claude, ChatGPT, Gemini…), copie la réponse puis colle-la ici."),
+    h(
+      "p",
+      { class: "hint" },
+      "Dans l'app (ChatGPT, Claude, Gemini…), copie toute la réponse puis colle-la ici : titre, ingrédients et étapes se rangent tout seuls, en français et en anglais.",
+    ),
     h(
       "label",
       { class: "field" },
@@ -686,7 +788,7 @@ function pasteForm() {
         name: "pasted",
         rows: 10,
         value: draft.pasted,
-        placeholder: "TITRE : …\nINGRÉDIENTS :\n- …\nÉTAPES :\n1. …",
+        placeholder: "=== FRANÇAIS ===\nTITRE : …\nINGRÉDIENTS :\n- …\nÉTAPES :\n1. …\n\n=== ENGLISH ===\nTITLE: …\nINGREDIENTS:\n- …\nSTEPS:\n1. …",
         oninput: (e) => (draft.pasted = e.target.value),
       }),
     ),
@@ -723,56 +825,96 @@ function fillFromPaste() {
   renderDay();
 }
 
+// Intitulés de rubriques reconnus dans une réponse d'app de chat, en français ou en anglais.
 const HEADER =
-  /^(titre|portions?|ingr[ée]dients?|[ée]tapes?|pr[ée]paration|instructions|notes?|astuces?)\b(?:[^:]{0,40}:\s*(.*)|\s*(?:\([^)]*\))?\s*)$/i;
+  /^(titre|title|portions?|servings?|serves|ingr[ée]dients?|[ée]tapes?|steps?|pr[ée]paration|instructions?|method|directions|notes?|astuces?|tips?)\b(?:[^:]{0,40}:\s*(.*)|\s*(?:\([^)]*\))?\s*)$/i;
+// Lignes qui annoncent une langue (« === FRANÇAIS === », « 🇬🇧 English version »…), lettres seules.
+const FR_MARKERS = new Set(["francais", "french", "enfrancais", "versionfrancaise", "frenchversion"]);
+const EN_MARKERS = new Set(["english", "anglais", "enanglais", "versionanglaise", "englishversion", "inenglish", "englishtranslation", "traductionanglaise"]);
 
-function sectionKey(word) {
-  const w = word.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  if (w.startsWith("titre")) return "titre";
-  if (w.startsWith("portion")) return "portions";
-  if (w.startsWith("ingredient")) return "ingredients";
-  if (w.startsWith("etape") || w.startsWith("preparation") || w.startsWith("instruction")) return "etapes";
-  return "note";
+/** Langue et rubrique d'un intitulé ; `currentLang` sert pour les intitulés communs aux deux langues. */
+function sectionOf(word, currentLang) {
+  const lower = word.toLowerCase();
+  const w = lower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (w === "titre") return ["fr", "title"];
+  if (w === "title") return ["en", "title"];
+  if (w.startsWith("portion")) return ["fr", "servings"];
+  if (w.startsWith("serv")) return ["en", "servings"];
+  if (w.startsWith("ingredient")) return [lower !== w ? "fr" : currentLang, "ingredients"];
+  if (w.startsWith("etape") || w.startsWith("preparation")) return ["fr", "steps"];
+  if (w.startsWith("step") || w === "method" || w === "directions") return ["en", "steps"];
+  if (w.startsWith("instruction")) return [currentLang, "steps"];
+  if (w.startsWith("astuce")) return ["fr", "note"];
+  if (w.startsWith("tip")) return ["en", "note"];
+  return [currentLang, "note"];
 }
 
 /**
- * Transforme la réponse d'une app de chat (format TITRE / INGRÉDIENTS / ÉTAPES / NOTE, Markdown
- * toléré) en recette. Sans ces rubriques : 1re ligne = titre, puces = ingrédients, numéros = étapes.
+ * Transforme la réponse d'une app de chat (ChatGPT, Claude, Gemini…) en recette bilingue.
+ * Format attendu : celui de CHAT_PROMPT, mais le gras, les titres Markdown, les emojis, les
+ * séparateurs et les intitulés approchants sont tolérés. Sans aucune rubrique : 1re ligne = titre,
+ * puces = ingrédients, lignes numérotées = étapes (en français).
  */
 function parseRecipeText(text) {
-  const sections = { titre: [], portions: [], ingredients: [], etapes: [], note: [] };
+  const empty = () => ({ title: [], servings: [], ingredients: [], steps: [], note: [] });
+  const sections = { fr: empty(), en: empty() };
   const loose = [];
-  let current = null;
+  let lang = "fr";
+  let current = null; // [langue, rubrique]
+  let sawHeader = false;
+  let afterMarker = false; // juste après « Version française » : la ligne suivante peut être le titre
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/\*\*|__/g, "").replace(/^\s*#+\s*/, "").trim();
-    if (!line) continue;
+    const letters = line.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+    if (!letters && !/\d/.test(line)) continue; // ligne vide ou séparateur (---, ===, emoji seul)
+    if (FR_MARKERS.has(letters) || EN_MARKERS.has(letters)) {
+      lang = FR_MARKERS.has(letters) ? "fr" : "en";
+      current = null;
+      afterMarker = true;
+      continue;
+    }
     const match = line.replace(/^[^\p{L}\p{N}\-•]+/u, "").match(HEADER);
     if (match) {
-      current = sectionKey(match[1]);
-      if (match[2]?.trim()) sections[current].push(match[2].trim());
+      const [l, key] = sectionOf(match[1], lang);
+      lang = l;
+      current = [l, key];
+      sawHeader = true;
+      afterMarker = false;
+      if (key === "title") sections[l].title = []; // un « TITRE : » explicite remplace un titre deviné
+      if (match[2]?.trim()) sections[l][key].push(match[2].trim());
     } else if (current) {
-      sections[current].push(line);
+      sections[current[0]][current[1]].push(line);
+    } else if (afterMarker && !sections[lang].title.length) {
+      sections[lang].title.push(line); // « ### Bœuf glacé » juste sous « Version française »
     } else {
-      loose.push(line);
+      loose.push([lang, line]);
     }
   }
-  if (!current) {
-    for (const line of loose) {
-      if (/^[-•*]\s+/.test(line)) sections.ingredients.push(line);
-      else if (/^\d+[.)]\s+/.test(line)) sections.etapes.push(line);
-      else if (!sections.titre.length) sections.titre.push(line);
-      else sections.note.push(line);
+  if (!sawHeader) {
+    for (const [l, line] of loose) {
+      const t = sections[l];
+      if (/^[-•*–]\s+/.test(line)) t.ingredients.push(line);
+      else if (/^(?:\d+[.)]|\d\uFE0F?\u20E3)\s*/.test(line)) t.steps.push(line);
+      else if (!t.title.length) t.title.push(line);
+      else t.note.push(line);
     }
-    if (!sections.ingredients.length && !sections.etapes.length) return null;
+    const hasList = (t) => t.ingredients.length || t.steps.length;
+    if (!hasList(sections.fr) && !hasList(sections.en)) return null;
   }
-  const recipe = {
-    titre: sections.titre.join(" "),
-    portions: sections.portions.join(" "),
-    ingredients: lines(sections.ingredients.join("\n")),
-    etapes: lines(sections.etapes.join("\n")),
-    note: sections.note.join(" "),
-  };
-  return recipe.titre || recipe.ingredients.length || recipe.etapes.length ? recipe : null;
+  const finish = (s) => ({
+    title: s.title.join(" "),
+    servings: s.servings.join(" "),
+    ingredients: lines(s.ingredients.join("\n")),
+    steps: lines(s.steps.join("\n")),
+    note: s.note.join(" "),
+  });
+  const fr = finish(sections.fr);
+  const en = finish(sections.en);
+  const filled = (v) => v.title || v.ingredients.length || v.steps.length;
+  if (!filled(fr) && !filled(en)) return null;
+  const recipe = { titre: fr.title, portions: fr.servings, ingredients: fr.ingredients, etapes: fr.steps, note: fr.note };
+  if (filled(en)) recipe.en = en;
+  return recipe;
 }
 
 const recipeToForm = (r) => ({
@@ -781,12 +923,37 @@ const recipeToForm = (r) => ({
   ingredients: (r?.ingredients ?? []).join("\n"),
   etapes: (r?.etapes ?? []).join("\n"),
   note: r?.note ?? "",
+  en_title: r?.en?.title ?? "",
+  en_servings: r?.en?.servings ?? "",
+  en_ingredients: (r?.en?.ingredients ?? []).join("\n"),
+  en_steps: (r?.en?.steps ?? []).join("\n"),
+  en_note: r?.en?.note ?? "",
 });
 
+function formToRecipe(f) {
+  const recipe = {
+    titre: f.titre.trim(),
+    portions: f.portions.trim(),
+    ingredients: lines(f.ingredients),
+    etapes: lines(f.etapes),
+    note: f.note.trim(),
+  };
+  const en = {
+    title: f.en_title.trim(),
+    servings: f.en_servings.trim(),
+    ingredients: lines(f.en_ingredients),
+    steps: lines(f.en_steps),
+    note: f.en_note.trim(),
+  };
+  if (en.title || en.ingredients.length || en.steps.length) recipe.en = en;
+  return recipe;
+}
+
+/** Une ligne par élément, sans puces ni numéros (« - », « • », « 1. », « 2) », « 3️⃣ »…). */
 const lines = (text) =>
   text
     .split("\n")
-    .map((l) => l.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, "").trim())
+    .map((l) => l.replace(/^\s*(?:[-•*–▪]|\d+[.)]|\d\uFE0F?\u20E3)\s*/, "").trim())
     .filter(Boolean);
 
 function editRecipe(recipe) {
@@ -809,6 +976,16 @@ function recipeForm(day) {
         ? h("textarea", { name, rows: props.rows, value: form[name], placeholder: props.placeholder })
         : h("input", { name, value: form[name], placeholder: props.placeholder }),
     );
+  // Un bloc par langue : titre et portions, puis ingrédients | étapes côte à côte, puis note.
+  const block = (legend, lang, names, labels) =>
+    h(
+      "fieldset",
+      { class: "recipe-lang-block", lang },
+      h("legend", {}, legend),
+      h("div", { class: "form-row" }, field(names[0], labels[0]), field(names[1], labels[1])),
+      h("div", { class: "recipe-columns" }, field(names[2], labels[2], { rows: 10 }), field(names[3], labels[3], { rows: 10 })),
+      field(names[4], labels[4], { rows: 2 }),
+    );
 
   return h(
     "form",
@@ -821,11 +998,18 @@ function recipeForm(day) {
       },
     },
     draft.fromAI && h("p", { class: "hint" }, "Relis et corrige si besoin avant d'enregistrer."),
-    field("titre", "Titre", { placeholder: "Nom du plat" }),
-    field("portions", "Portions", { placeholder: "ex. 2 personnes" }),
-    field("ingredients", "Ingrédients (un par ligne)", { rows: 8 }),
-    field("etapes", "Étapes (une par ligne)", { rows: 8 }),
-    field("note", "Note", { rows: 2 }),
+    block(
+      "🇫🇷 Français",
+      "fr",
+      ["titre", "portions", "ingredients", "etapes", "note"],
+      ["Titre", "Portions", "Ingrédients (un par ligne)", "Étapes (une par ligne)", "Note"],
+    ),
+    block(
+      "🇬🇧 English",
+      "en",
+      ["en_title", "en_servings", "en_ingredients", "en_steps", "en_note"],
+      ["Title", "Servings", "Ingredients (one per line)", "Steps (one per line)", "Note"],
+    ),
     h(
       "div",
       { class: "actions" },
@@ -836,15 +1020,8 @@ function recipeForm(day) {
 }
 
 async function saveRecipe(day) {
-  const form = state.draft.recipe.form;
-  const recipe = {
-    titre: form.titre.trim(),
-    portions: form.portions.trim(),
-    ingredients: lines(form.ingredients),
-    etapes: lines(form.etapes),
-    note: form.note.trim(),
-  };
-  if (!recipe.titre && !recipe.ingredients.length && !recipe.etapes.length) {
+  const recipe = formToRecipe(state.draft.recipe.form);
+  if (!recipeIn(recipe, "fr") && !recipeIn(recipe, "en")) {
     toast("La recette est vide.", "error");
     return;
   }
@@ -1063,9 +1240,10 @@ async function deleteWeigh(day) {
 // --- Mises à jour -------------------------------------------------------------
 
 // Remplacés au déploiement par GitHub Actions ; restent tels quels en local.
-const APP_VERSION = "__VERSION__";
+const APP_VERSION = "__APP_VERSION__"; // numéro de version (fichier VERSION), ex. 1.2.0
+const APP_BUILD = "__VERSION__"; // identifiant du déploiement : sert à détecter les nouvelles versions
 const APP_BUILD_DATE = "__BUILD_DATE__";
-const IS_DEPLOYED = !APP_VERSION.startsWith("__");
+const IS_DEPLOYED = !APP_BUILD.startsWith("__");
 const UPDATE_CHECK_MS = 30 * 60 * 1000;
 let updateReady = false;
 
@@ -1078,16 +1256,28 @@ function isIdle() {
   );
 }
 
+/** Bas de page : « Version 1.2.0 · 30/09/2026 », suivi de l'état (à jour, nouvelle version…). */
+function showVersion(status = "") {
+  const base = IS_DEPLOYED ? `Version ${APP_VERSION} · ${APP_BUILD_DATE}` : "Version locale (non déployée)";
+  $("#version").textContent = status ? `${base} · ${status}` : base;
+}
+
 async function checkForUpdate() {
   if (!IS_DEPLOYED || updateReady || !navigator.onLine) return;
   let latest;
   try {
-    const res = await fetch("version.json", { cache: "no-store" });
-    latest = (await res.json()).version;
+    latest = await (await fetch("version.json", { cache: "no-store" })).json();
   } catch {
     return;
   }
-  if (!latest || latest === APP_VERSION) return;
+  if (!latest?.build) return;
+  if (latest.build === APP_BUILD) {
+    showVersion("à jour ✓");
+    return;
+  }
+  const label = latest.version ? `version ${latest.version}` : "nouvelle version";
+  showVersion(`${label} disponible`);
+  $("#update-banner span").textContent = `Nouvelle ${label} disponible`;
   // Rafraîchit la page d'accueil en cache : elle pointe vers les fichiers de la nouvelle version.
   await Promise.all(["./", "index.html"].map((url) => fetch(url, { cache: "reload" }).catch(() => {})));
   updateReady = true;
@@ -1105,14 +1295,12 @@ function applyUpdate() {
 }
 
 function wireUpdates() {
-  $("#version").textContent = IS_DEPLOYED
-    ? `Version du ${APP_BUILD_DATE} · ${APP_VERSION}`
-    : "Version locale (non déployée)";
+  showVersion();
   $("#update-now").addEventListener("click", applyUpdate);
   try {
     if (sessionStorage.getItem("just-updated")) {
       sessionStorage.removeItem("just-updated");
-      toast("Application mise à jour ✓");
+      toast(`Application mise à jour : version ${APP_VERSION} ✓`);
     }
   } catch {
     // stockage indisponible

@@ -5,7 +5,9 @@ Mon suivi personnel, en un seul site :
 - **Sur le PC** : un calendrier du mois. Chaque case montre la photo du repas, le titre de la recette et, le mardi, le poids de la pesée. Un clic sur une case ouvre le détail de la journée.
 - **Sur le téléphone** : le même site, installé comme une application (icône sur l'écran d'accueil). Il s'ouvre sur la journée du jour avec trois blocs :
   - 🍽️ **Repas** : prendre une photo, qui s'enregistre dans la journée.
-  - 📖 **Recette** : photographier la fiche (recto et verso si besoin). Gemini la lit automatiquement et la réécrit simplement : titre, liste des ingrédients, étapes. Tu relis et corriges, puis tu enregistres. En secours, tu peux envoyer la photo à ton app IA habituelle (Claude, ChatGPT, Gemini…) et coller sa réponse : la recette se remplit toute seule.
+  - 📖 **Recette** : photographier la fiche (recto et verso si besoin). Gemini la lit automatiquement, la réécrit simplement et la **traduit en anglais** : titre, ingrédients, étapes. Tu relis et corriges, puis tu enregistres. En secours, tu peux envoyer la photo à ton app IA habituelle (ChatGPT, Claude, Gemini…) et coller sa réponse : la recette se remplit toute seule, dans les deux langues.
+
+Sur grand écran, une journée s'affiche avec la photo du repas à gauche et la recette à droite, coupée en deux : les ingrédients d'un côté, les étapes de l'autre. Le bouton **FR | EN** change la langue de la recette. Sur téléphone, tout est empilé.
   - ⚖️ **Pesée**, seulement le mardi : photo de la balance et poids saisi à la main.
 
 **Public en lecture, privé en écriture** : n'importe qui peut consulter le site, avec le calendrier, les photos des repas, les recettes et le poids des pesées. Les **photos de la balance** restent privées : elles sont rangées dans un stockage à part, que seul ton compte connecté peut lire. Seul toi, après **Se connecter**, peux ajouter, modifier ou supprimer. Le site n'est pas référencé par les moteurs de recherche : il faut en connaître l'adresse.
@@ -70,7 +72,9 @@ Chaque `git push` sur `main` redéploie tout, sans rien à faire de plus :
   - Si tu n'es pas en train de saisir quelque chose, elle se recharge toute seule et affiche « Application mise à jour ✓ ».
   - Sinon, un bandeau **Nouvelle version disponible → Mettre à jour** apparaît, pour ne rien perdre.
 
-La version installée est affichée tout en bas de l'appli (« Version du 30/09/2026 · a1b2c3d »).
+La version installée est affichée tout en bas de l'appli, avec son état : « Version 1.0.0 · 30/09/2026 · à jour ✓ », ou « version 1.1.0 disponible » s'il en existe une plus récente.
+
+Le numéro vient du fichier `VERSION`. Claude l'augmente à chaque modification : le 2ᵉ chiffre pour une nouveauté (1.0.0 → 1.1.0), le 3ᵉ pour une correction (1.1.0 → 1.1.1).
 
 Pour une modification, demande-la à Claude dans ce dossier, puis envoie-la :
 
@@ -84,7 +88,7 @@ Changer une clé (par exemple une nouvelle clé Gemini) : mets à jour le secret
 
 - **Repas** : 📷 *Prendre une photo*. C'est enregistré tout de suite.
 - **Recette** : 📷 *Photographier la recette*. Si la liste d'ingrédients est sur l'autre face, ajoute-la avec *Autre page*, puis ✨ *Lire la recette*. Relis le résultat, corrige si besoin, puis *Enregistrer la recette*.
-- **Si Gemini ne répond pas** (quota atteint, modèle retiré…) : ↗️ *Envoyer à une app IA*. Le menu de partage du téléphone s'ouvre : choisis Claude, ChatGPT ou Gemini. La photo part avec la consigne, qui est aussi copiée au cas où l'app ne la reprendrait pas. Dans l'app, copie la réponse, reviens sur le site, 📋 *Coller*, puis *Remplir la recette*.
+- **Si Gemini ne répond pas** (surchargé, quota atteint…) : l'appli le signale et met en avant ↗️ *Envoyer à une app IA*. Le menu de partage du téléphone s'ouvre : choisis ChatGPT (ou Claude, Gemini…). La photo part avec la consigne, qui demande la recette en français puis en anglais, dans un format précis. La consigne est aussi copiée, au cas où l'app ne la reprendrait pas. Dans l'app, copie toute la réponse, reviens sur le site, 📋 *Coller*, puis *Remplir la recette*. Le gras, les titres, les emojis et les séparateurs de ChatGPT sont bien gérés.
 - Tu peux aussi coller une réponse d'IA obtenue autrement (📋 *Coller une réponse d'IA*) ou écrire la recette à la main.
 - **Pesée (mardi)** : 📷 *Photo de la balance*. Gemini repère l'écran de la balance en deux passes (photo entière, puis zoom), et la photo est recadrée au ras de l'écran avant d'être enregistrée. Un cadran à aiguille est découpé en rond : tout ce qui est hors du cercle est effacé. Si l'écran n'est pas trouvé, l'appli propose de garder la photo entière. Tape ensuite le poids, puis *Enregistrer le poids*. L'ordre n'a pas d'importance.
 - Pour remplir un autre jour, change la date avec les flèches ‹ › ou le sélecteur de date.

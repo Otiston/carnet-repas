@@ -86,17 +86,18 @@ jobs:
 
       - name: Préparer le site
         run: |
-          version="${GITHUB_SHA::7}"
+          version="$(tr -d ' \r\n' < VERSION)"   # numéro affiché, ex. 1.2.0
+          build="${GITHUB_SHA::7}"                  # identifiant unique du déploiement
           build_date="$(TZ=Europe/Paris date +%d/%m/%Y)"
 
           mkdir _site
           cp index.html app.js api.js config.js styles.css manifest.webmanifest _site/
           cp -r icons _site/
-          # Numéro de version dans les liens des fichiers : le téléphone ne peut pas garder
-          # un mélange d'ancienne et de nouvelle version en cache.
-          sed -i "s/__VERSION__/$version/g; s#__BUILD_DATE__#$build_date#g" \
+          # Identifiant du déploiement dans les liens des fichiers : le téléphone ne peut pas
+          # garder un mélange d'ancienne et de nouvelle version en cache.
+          sed -i "s/__VERSION__/$build/g; s/__APP_VERSION__/$version/g; s#__BUILD_DATE__#$build_date#g" \
             _site/index.html _site/app.js _site/api.js
-          echo "{\"version\":\"$version\",\"date\":\"$build_date\"}" > _site/version.json
+          echo "{\"version\":\"$version\",\"build\":\"$build\",\"date\":\"$build_date\"}" > _site/version.json
 
       - uses: actions/configure-pages@v6
 

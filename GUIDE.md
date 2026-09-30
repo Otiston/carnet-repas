@@ -265,7 +265,7 @@ Pour vérifier, si tu veux : dans **Authentication**, ouvre la page des réglage
 ### E1. Sur le PC
 
 1. Ouvre `https://otiston.github.io/carnet-repas/`.
-2. Tu arrives sur le **Calendrier**, en consultation : c'est ce que voit n'importe quel visiteur, sans bouton pour modifier. Tout en bas de la page, tu dois lire « Version du … · » suivi d'un code de 7 caractères.
+2. Tu arrives sur le **Calendrier**, en consultation : c'est ce que voit n'importe quel visiteur, sans bouton pour modifier. Tout en bas de la page, tu dois lire « Version 1.0.0 · … · à jour ✓ ».
 3. Clique **Se connecter** en haut à droite, puis entre l'email et le mot de passe de l'étape D1. Le message « Connecté : tu peux modifier ✓ » s'affiche, et les boutons d'ajout apparaissent dans la vue **Jour**.
 
 ### E2. Installer l'application sur le téléphone
@@ -327,7 +327,7 @@ git push
    - si tu n'es pas en train de saisir quelque chose, l'appli se recharge seule et affiche « Application mise à jour ✓ » ;
    - sinon, un bandeau **Nouvelle version disponible → Mettre à jour** apparaît en haut, pour ne rien perdre.
 
-Pour vérifier la version installée, regarde tout en bas de l'appli : le code après « Version du … · » correspond au dernier déploiement, visible dans l'onglet **Actions** de GitHub.
+Pour vérifier la version installée, regarde tout en bas de l'appli : « Version 1.2.0 · … · à jour ✓ » veut dire que tu as la dernière version. S'il en existe une plus récente, tu y lis « version 1.3.0 disponible ».
 
 ---
 
