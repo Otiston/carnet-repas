@@ -4,10 +4,8 @@ import { SUPABASE_URL, SUPABASE_KEY } from "./config.js?v=__VERSION__";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const BUCKET = "photos";
-const SIGNED_URL_SECONDS = 60 * 60;
 
 let userId = null;
-const urlCache = new Map(); // chemin -> { url, expires }
 
 // --- Connexion -------------------------------------------------------------
 
@@ -76,7 +74,8 @@ export async function uploadPhoto(day, kind, full, thumb) {
   const base = `${userId}/${day}/${kind}-${Date.now()}`;
   const path = `${base}.jpg`;
   const thumbPath = `${base}-mini.jpg`;
-  const options = { contentType: "image/jpeg", upsert: false };
+  // Chaque photo a un nom unique : le navigateur peut la garder en cache un an.
+  const options = { contentType: "image/jpeg", upsert: false, cacheControl: "31536000" };
   const results = await Promise.all([
     supabase.storage.from(BUCKET).upload(path, full, options),
     supabase.storage.from(BUCKET).upload(thumbPath, thumb, options),
@@ -92,30 +91,13 @@ export async function uploadPhoto(day, kind, full, thumb) {
 export async function removeFiles(paths) {
   const list = paths.filter(Boolean);
   if (!list.length) return;
-  for (const p of list) urlCache.delete(p);
   await supabase.storage.from(BUCKET).remove(list);
 }
 
-/** URLs signées (bucket privé) pour afficher les photos, mises en cache ~1 h. */
-export async function signedUrls(paths) {
-  const now = Date.now();
-  const wanted = [...new Set(paths.filter(Boolean))];
-  const missing = wanted.filter((p) => !(urlCache.get(p)?.expires > now));
-  if (missing.length) {
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrls(missing, SIGNED_URL_SECONDS);
-    if (error) throw error;
-    for (const item of data) {
-      if (item.signedUrl) {
-        urlCache.set(item.path, {
-          url: item.signedUrl,
-          expires: now + (SIGNED_URL_SECONDS - 120) * 1000,
-        });
-      }
-    }
-  }
-  return new Map(wanted.map((p) => [p, urlCache.get(p)?.url]));
+/** Adresses publiques des photos (le bucket est lisible par tous). */
+export function photoUrls(paths) {
+  const bucket = supabase.storage.from(BUCKET);
+  return new Map(paths.filter(Boolean).map((p) => [p, bucket.getPublicUrl(p).data.publicUrl]));
 }
 
 // --- Lecture de recette ----------------------------------------------------

@@ -176,10 +176,13 @@ textarea {
 /* --- Connexion --- */
 
 #login {
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  z-index: 22;
   display: grid;
   place-items: center;
   padding: 16px;
+  background: rgb(0 0 0 / 0.55);
 }
 .login-card {
   width: min(360px, 100%);

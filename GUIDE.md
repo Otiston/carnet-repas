@@ -2,7 +2,7 @@
 
 Ce guide te fait mettre en ligne **Carnet repas** en suivant chaque clic. Compte **45 minutes environ**, à faire **une seule fois**, sur ton **PC**. À la fin :
 
-- le site est en ligne à l'adresse `https://otiston.github.io/carnet-repas/` ;
+- le site est en ligne à l'adresse `https://otiston.github.io/carnet-repas/`, **consultable par tout le monde**, mais **modifiable par toi seul** une fois connecté ;
 - l'application est installée sur ton téléphone ;
 - chaque future modification se met en ligne toute seule.
 
@@ -265,22 +265,22 @@ Pour vérifier, si tu veux : dans **Authentication**, ouvre la page des réglage
 ### E1. Sur le PC
 
 1. Ouvre `https://otiston.github.io/carnet-repas/`.
-2. Connecte-toi avec l'email et le mot de passe de l'étape D1.
-3. Tu arrives sur le **Calendrier**. Tout en bas de la page, tu dois lire « Version du … · » suivi d'un code de 7 caractères.
+2. Tu arrives sur le **Calendrier**, en consultation : c'est ce que voit n'importe quel visiteur, sans bouton pour modifier. Tout en bas de la page, tu dois lire « Version du … · » suivi d'un code de 7 caractères.
+3. Clique **Se connecter** en haut à droite, puis entre l'email et le mot de passe de l'étape D1. Le message « Connecté : tu peux modifier ✓ » s'affiche, et les boutons d'ajout apparaissent dans la vue **Jour**.
 
 ### E2. Installer l'application sur le téléphone
 
 **Android (Chrome)**
 
 1. Ouvre **Chrome** et va sur `https://otiston.github.io/carnet-repas/`.
-2. Connecte-toi (email et mot de passe de D1).
+2. Touche **Se connecter** en haut à droite, puis entre l'email et le mot de passe de D1.
 3. Touche le menu **⋮** (en haut à droite), puis **Ajouter à l'écran d'accueil** (ou **Installer l'application**), puis **Installer**.
 4. L'icône verte **Carnet repas** apparaît sur ton écran d'accueil.
 
 **iPhone (Safari)**
 
 1. Ouvre **Safari** et va sur `https://otiston.github.io/carnet-repas/`.
-2. Connecte-toi.
+2. Touche **Se connecter** en haut à droite, puis entre l'email et le mot de passe de D1.
 3. Touche le bouton **Partager** (le carré avec une flèche vers le haut), puis **Sur l'écran d'accueil**, puis **Ajouter**.
 
 ✅ **En ouvrant l'icône**, l'appli s'affiche en plein écran, sur la journée du jour. Tu restes connecté : pas besoin de retaper ton mot de passe.

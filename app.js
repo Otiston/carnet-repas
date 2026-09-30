@@ -132,6 +132,7 @@ function toBase64(blob) {
 // --- État --------------------------------------------------------------------
 
 const state = {
+  canEdit: false, // vrai quand le propriétaire est connecté ; sinon consultation seule
   view: "jour", // "jour" | "calendrier"
   day: todayStr(),
   month: todayStr().slice(0, 7), // YYYY-MM
@@ -181,8 +182,9 @@ function route() {
     state.day = day;
     state.month = day.slice(0, 7);
   } else {
-    // Grand écran : calendrier ; téléphone : saisie du jour.
-    location.replace(matchMedia("(min-width: 760px)").matches ? "#calendrier" : "#jour");
+    // Visiteurs et grand écran : calendrier ; propriétaire sur téléphone : saisie du jour.
+    const wide = matchMedia("(min-width: 760px)").matches;
+    location.replace(wide || !state.canEdit ? "#calendrier" : "#jour");
     return;
   }
   document.querySelectorAll("[data-view]").forEach((btn) =>
@@ -215,7 +217,7 @@ async function renderCalendar() {
   let urls;
   try {
     rows = await api.loadDays(start, end);
-    urls = await api.signedUrls([...rows.values()].flatMap((r) => [r.food_thumb, r.weigh_thumb]));
+    urls = api.photoUrls([...rows.values()].flatMap((r) => [r.food_thumb, r.weigh_thumb]));
   } catch (err) {
     grid.classList.remove("loading");
     toast(errorMessage(err), "error");
@@ -280,22 +282,20 @@ async function renderDay({ refresh = false } = {}) {
       toast(errorMessage(err), "error");
     }
   }
-  const row = rowFor(day);
-  let urls = new Map();
-  try {
-    urls = await api.signedUrls([row?.food_path, row?.weigh_path]);
-  } catch (err) {
-    toast(errorMessage(err), "error");
-  }
   if (state.day !== day || state.view !== "jour") return;
+  const row = rowFor(day);
+  const urls = api.photoUrls([row?.food_path, row?.weigh_path]);
 
-  body.replaceChildren(
-    foodCard(day, row, urls),
-    recipeCard(day, row),
-    isTuesday(day)
-      ? weighCard(day, row, urls)
-      : h("p", { class: "muted center small" }, "⚖️ La pesée s'ajoute le mardi."),
-  );
+  const cards = state.canEdit
+    ? [
+        foodCard(day, row, urls),
+        recipeCard(day, row),
+        isTuesday(day)
+          ? weighCard(day, row, urls)
+          : h("p", { class: "muted center small" }, "⚖️ La pesée s'ajoute le mardi."),
+      ]
+    : [foodCard(day, row, urls), recipeCard(day, row), weighCard(day, row, urls)].filter(Boolean);
+  body.replaceChildren(...(cards.length ? cards : [h("p", { class: "muted center" }, "Rien de noté ce jour-là.")]));
 }
 
 function card(kind, icon, title, ...content) {
@@ -327,6 +327,10 @@ function openLightbox(src) {
 // Repas ---------------------------------------------------------------------
 
 function foodCard(day, row, urls) {
+  if (!state.canEdit) {
+    const url = row?.food_path && urls.get(row.food_path);
+    return url ? card("food", "🍽️", "Repas", h("img", { class: "photo", src: url, alt: "Photo du repas", onclick: () => openLightbox(url) })) : null;
+  }
   if (state.draft.busy.has("food")) return card("food", "🍽️", "Repas", spinner("Envoi de la photo…"));
   const url = row?.food_path && urls.get(row.food_path);
   if (!url) {
@@ -382,9 +386,22 @@ async function deleteFood(day) {
 
 // Recette -------------------------------------------------------------------
 
+function recipeDetails(r) {
+  return [
+    h("h4", { class: "recipe-title" }, r.titre || "Recette sans titre"),
+    r.portions && h("p", { class: "muted small" }, r.portions),
+    r.ingredients?.length > 0 &&
+      h("div", {}, h("h5", {}, "Ingrédients"), h("ul", { class: "ingredients" }, r.ingredients.map((i) => h("li", {}, i)))),
+    r.etapes?.length > 0 &&
+      h("div", {}, h("h5", {}, "Étapes"), h("ol", { class: "steps" }, r.etapes.map((s) => h("li", {}, s)))),
+    r.note && h("p", { class: "note" }, "💡 ", r.note),
+  ];
+}
+
 function recipeCard(day, row) {
   const draft = state.draft.recipe;
   const title = "Recette";
+  if (!state.canEdit) return row?.recipe ? card("recipe", "📖", title, recipeDetails(row.recipe)) : null;
 
   if (state.draft.busy.has("recipe")) return card("recipe", "📖", title, spinner("Enregistrement…"));
 
@@ -458,13 +475,7 @@ function recipeCard(day, row) {
     "recipe",
     "📖",
     title,
-    h("h4", { class: "recipe-title" }, r.titre || "Recette sans titre"),
-    r.portions && h("p", { class: "muted small" }, r.portions),
-    r.ingredients?.length > 0 &&
-      h("div", {}, h("h5", {}, "Ingrédients"), h("ul", { class: "ingredients" }, r.ingredients.map((i) => h("li", {}, i)))),
-    r.etapes?.length > 0 &&
-      h("div", {}, h("h5", {}, "Étapes"), h("ol", { class: "steps" }, r.etapes.map((s) => h("li", {}, s)))),
-    r.note && h("p", { class: "note" }, "💡 ", r.note),
+    recipeDetails(r),
     h(
       "div",
       { class: "actions" },
@@ -799,22 +810,25 @@ async function deleteRecipe(day) {
 function weighCard(day, row, urls) {
   const draft = state.draft.weigh;
   const title = "Pesée du mardi";
-  if (state.draft.busy.has("weigh")) return card("weigh", "⚖️", title, spinner("Enregistrement…"));
-
   const savedUrl = row?.weigh_path && urls.get(row.weigh_path);
   const hasSaved = row?.weight_kg != null || savedUrl;
+  const details = () =>
+    h(
+      "div",
+      { class: "weigh-view" },
+      savedUrl && h("img", { class: "photo small-photo", src: savedUrl, alt: "Photo de la balance", onclick: () => openLightbox(savedUrl) }),
+      row.weight_kg != null && h("p", { class: "weight" }, formatKg(row.weight_kg)),
+    );
+
+  if (!state.canEdit) return hasSaved ? card("weigh", "⚖️", title, details()) : null;
+  if (state.draft.busy.has("weigh")) return card("weigh", "⚖️", title, spinner("Enregistrement…"));
 
   if (hasSaved && !draft.editing) {
     return card(
       "weigh",
       "⚖️",
       title,
-      h(
-        "div",
-        { class: "weigh-view" },
-        savedUrl && h("img", { class: "photo small-photo", src: savedUrl, alt: "Photo de la balance", onclick: () => openLightbox(savedUrl) }),
-        row.weight_kg != null && h("p", { class: "weight" }, formatKg(row.weight_kg)),
-      ),
+      details(),
       h(
         "div",
         { class: "actions" },
@@ -1005,36 +1019,49 @@ function wireUpdates() {
 
 // --- Démarrage ---------------------------------------------------------------
 
-function showApp(signedIn) {
-  $("#login").hidden = signedIn;
-  $("#shell").hidden = !signedIn;
-  if (signedIn) route();
+/** Mode édition quand le propriétaire est connecté, sinon consultation seule. */
+function setSignedIn(signedIn) {
+  state.canEdit = signedIn;
+  $("#auth-button").textContent = signedIn ? "Déconnexion" : "Se connecter";
+  $("#login").hidden = true;
+  $("#shell").hidden = false;
+  route();
+}
+
+function openLogin() {
+  $("#login-error").textContent = "";
+  $("#login").hidden = false;
+  $("#login-form [name=email]").focus();
 }
 
 function wireStaticControls() {
   $("#login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const form = new FormData(e.target);
-    const button = e.target.querySelector("button");
+    const button = e.target.querySelector("button[type=submit]");
     button.disabled = true;
     $("#login-error").textContent = "";
     try {
       await api.signIn(form.get("email"), form.get("password"));
-      showApp(true);
+      e.target.reset();
+      setSignedIn(true);
+      toast("Connecté : tu peux modifier ✓");
     } catch {
       $("#login-error").textContent = "Email ou mot de passe incorrect.";
     } finally {
       button.disabled = false;
     }
   });
+  $("#login-cancel").addEventListener("click", () => ($("#login").hidden = true));
 
-  $("#logout").addEventListener("click", async () => {
-    if (confirm("Se déconnecter ?")) await api.signOut();
+  $("#auth-button").addEventListener("click", async () => {
+    if (!state.canEdit) openLogin();
+    else if (confirm("Se déconnecter ?")) await api.signOut();
   });
   api.onSignedOut(() => {
     state.days.clear();
     resetDraft();
-    showApp(false);
+    setSignedIn(false);
   });
 
   document.querySelectorAll("[data-view]").forEach((btn) =>
@@ -1058,7 +1085,10 @@ function wireStaticControls() {
 
   $("#lightbox").addEventListener("click", () => ($("#lightbox").hidden = true));
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") $("#lightbox").hidden = true;
+    if (e.key === "Escape") {
+      $("#lightbox").hidden = true;
+      $("#login").hidden = true;
+    }
   });
 
   window.addEventListener("hashchange", () => {
@@ -1068,4 +1098,4 @@ function wireStaticControls() {
 
 wireStaticControls();
 wireUpdates();
-showApp(Boolean(await api.currentUser()));
+setSignedIn(Boolean(await api.currentUser()));

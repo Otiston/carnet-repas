@@ -8,6 +8,8 @@ Mon suivi personnel, en un seul site :
   - 📖 **Recette** : photographier la fiche (recto et verso si besoin). Gemini la lit automatiquement et la réécrit simplement : titre, liste des ingrédients, étapes. Tu relis et corriges, puis tu enregistres. En secours, tu peux envoyer la photo à ton app IA habituelle (Claude, ChatGPT, Gemini…) et coller sa réponse : la recette se remplit toute seule.
   - ⚖️ **Pesée**, seulement le mardi : photo de la balance et poids saisi à la main.
 
+**Public en lecture, privé en écriture** : n'importe qui peut consulter le site, avec le calendrier, les photos, les recettes et les pesées. Seul toi, après **Se connecter**, peux ajouter, modifier ou supprimer. Le site n'est pas référencé par les moteurs de recherche : il faut en connaître l'adresse.
+
 **Coût : 0 €.** Supabase, GitHub (Pages et Actions) et l'offre gratuite de l'API Gemini ne demandent pas de carte bancaire. Sur l'offre gratuite, Google peut utiliser les photos de fiches recettes pour améliorer ses produits. Tes photos de repas et tes pesées ne lui sont jamais envoyées.
 
 ## Comment ça marche

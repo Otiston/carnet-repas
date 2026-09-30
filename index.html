@@ -17,7 +17,7 @@
     <script type="module" src="app.js?v=__VERSION__"></script>
   </head>
   <body>
-    <main id="login" hidden>
+    <div id="login" hidden>
       <form id="login-form" class="login-card">
         <img src="icons/icon-192.png" alt="" width="64" height="64" />
         <h1>Carnet repas</h1>
@@ -30,9 +30,11 @@
           <input type="password" name="password" autocomplete="current-password" required />
         </label>
         <button class="primary big" type="submit">Se connecter</button>
+        <button id="login-cancel" class="ghost" type="button">Annuler</button>
         <p id="login-error" class="error" role="alert"></p>
+        <p class="muted small">Réservé au propriétaire du carnet : la consultation est libre.</p>
       </form>
-    </main>
+    </div>
 
     <div id="shell" hidden>
       <header class="topbar">
@@ -40,7 +42,7 @@
           <button data-view="jour">Jour</button>
           <button data-view="calendrier">Calendrier</button>
         </nav>
-        <button id="logout" class="ghost small">Déconnexion</button>
+        <button id="auth-button" class="ghost small">Se connecter</button>
       </header>
 
       <section id="view-jour" class="view" hidden>
