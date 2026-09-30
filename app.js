@@ -97,9 +97,10 @@ function pickImages({ camera = false, multiple = false } = {}) {
 
 /**
  * Convertit la photo en JPEG d'au plus `maxSide` pixels de côté. Avec `box`
- * ([ymin, xmin, ymax, xmax] entre 0 et 1000), ne garde que ce cadre.
+ * ([ymin, xmin, ymax, xmax] entre 0 et 1000), ne garde que ce cadre ; avec `round`,
+ * efface aussi (en blanc) tout ce qui est hors de l'ovale inscrit dans le cadre.
  */
-async function toJpeg(file, maxSide, quality, box = null) {
+async function toJpeg(file, maxSide, quality, box = null, round = false) {
   let bitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -116,7 +117,16 @@ async function toJpeg(file, maxSide, quality, box = null) {
   const canvas = h("canvas");
   canvas.width = Math.round(sw * scale);
   canvas.height = Math.round(sh * scale);
-  canvas.getContext("2d").drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext("2d");
+  if (round) {
+    const { width: w, height: hh } = canvas;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, w, hh);
+    ctx.beginPath();
+    ctx.ellipse(w / 2, hh / 2, w / 2, hh / 2, 0, 0, Math.PI * 2);
+    ctx.clip();
+  }
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
   return new Promise((resolve, reject) =>
     canvas.toBlob(
@@ -128,16 +138,44 @@ async function toJpeg(file, maxSide, quality, box = null) {
 }
 
 /** Version affichée (1600 px) + miniature du calendrier (400 px), éventuellement recadrées. */
-const photoVersions = (file, box = null) =>
-  Promise.all([toJpeg(file, 1600, 0.85, box), toJpeg(file, 400, 0.75, box)]);
+const photoVersions = (file, box = null, round = false) =>
+  Promise.all([toJpeg(file, 1600, 0.85, box, round), toJpeg(file, 400, 0.75, box, round)]);
 
-/** Élargit un peu le cadre trouvé par Gemini pour ne pas couper les bords de l'écran. */
-function padBox([ymin, xmin, ymax, xmax], margin = 0.06) {
+/** Élargit (ou resserre, si `margin` < 0) un cadre [ymin, xmin, ymax, xmax] exprimé entre 0 et 1000. */
+function padBox([ymin, xmin, ymax, xmax], margin) {
   const dy = (ymax - ymin) * margin;
   const dx = (xmax - xmin) * margin;
   const clamp = (v) => Math.min(1000, Math.max(0, v));
   return [clamp(ymin - dy), clamp(xmin - dx), clamp(ymax + dy), clamp(xmax + dx)];
 }
+
+/** Ramène un cadre mesuré dans un zoom (`outer`) aux coordonnées de la photo entière. */
+function unzoomBox([ymin, xmin, ymax, xmax], [oy, ox, oy2, ox2]) {
+  const y = (v) => oy + (v / 1000) * (oy2 - oy);
+  const x = (v) => ox + (v / 1000) * (ox2 - ox);
+  return [y(ymin), x(xmin), y(ymax), x(xmax)];
+}
+
+/**
+ * Repère l'écran de la balance en deux passes : Gemini le cherche sur la photo entière,
+ * puis sur un zoom autour de ce premier cadre, pour un cadrage bien plus serré.
+ * Renvoie { box, shape } dans les coordonnées de la photo entière, ou null.
+ */
+async function findScaleScreen(file) {
+  const first = await api.frameScale(await toBase64(await toJpeg(file, 1024, 0.8)));
+  if (!first) return null;
+  const zoom = padBox(first.box, 0.35);
+  try {
+    const second = await api.frameScale(await toBase64(await toJpeg(file, 1024, 0.85, zoom)));
+    if (second) return { box: unzoomBox(second.box, zoom), shape: second.shape };
+  } catch {
+    // seconde passe indisponible : on garde le premier cadre
+  }
+  return first;
+}
+
+/** Photos de balance découpées en rond : repérées par leur nom de fichier (« pesee-rond-… »). */
+const isRoundPhoto = (path) => /\/pesee-rond-/.test(path ?? "");
 
 function toBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -354,8 +392,9 @@ function photoButtons(onPick, { cameraLabel = "Prendre une photo", galleryLabel 
 
 const spinner = (text) => h("p", { class: "busy" }, h("span", { class: "spin", "aria-hidden": "true" }), text);
 
-function openLightbox(src) {
+function openLightbox(src, round = false) {
   $("#lightbox img").src = src;
+  $("#lightbox img").classList.toggle("round", round);
   $("#lightbox").hidden = false;
 }
 
@@ -849,7 +888,12 @@ function weighCard(day, row, urls) {
   const weight = row?.weight_kg;
   const photo =
     photoUrl &&
-    h("img", { class: "photo small-photo", src: photoUrl, alt: "Photo de la balance", onclick: () => openLightbox(photoUrl) });
+    h("img", {
+      class: `photo small-photo${isRoundPhoto(row.weigh_path) ? " round" : ""}`,
+      src: photoUrl,
+      alt: "Photo de la balance",
+      onclick: () => openLightbox(photoUrl, isRoundPhoto(row.weigh_path)),
+    });
   const bigWeight = weight != null && h("p", { class: "weight" }, formatKg(weight));
 
   // Visiteurs : le poids seulement ; la photo de la balance est privée.
@@ -944,22 +988,25 @@ async function addWeighPhoto(day, camera) {
   draft.busy.add("weigh-photo");
   setStatus("Recadrage sur l'écran de la balance…");
   try {
-    let box = null;
+    let screen = null;
     let problem = "L'écran de la balance n'a pas été trouvé sur la photo.";
     try {
-      box = await api.frameScale(await toBase64(await toJpeg(file, 1024, 0.8)));
+      screen = await findScaleScreen(file);
     } catch (err) {
       problem = errorMessage(err);
     }
-    if (!box && !confirm(`${problem}\n\nEnregistrer la photo entière quand même ?`)) return;
+    if (!screen && !confirm(`${problem}\n\nEnregistrer la photo entière quand même ?`)) return;
 
     setStatus("Envoi de la photo…");
-    const [full, thumb] = await photoVersions(file, box && padBox(box));
+    const round = screen?.shape === "rond";
+    // Cadran rond : découpe au ras du cercle ; afficheur : petite marge autour des chiffres.
+    const box = screen && padBox(screen.box, round ? 0.02 : 0.05);
+    const [full, thumb] = await photoVersions(file, box, round);
     const old = rowFor(day);
-    const paths = await api.uploadPhoto(day, "pesee", full, thumb);
+    const paths = await api.uploadPhoto(day, "pesee", full, thumb, round ? "rond" : "");
     await saveFields(day, { weigh_path: paths.path, weigh_thumb: paths.thumb });
     api.removeFiles("pesee", [old?.weigh_path, old?.weigh_thumb]).catch(() => {});
-    toast(box ? "Photo recadrée sur l'écran et enregistrée ✓" : "Photo de la balance enregistrée ✓");
+    toast(screen ? "Photo recadrée sur l'écran et enregistrée ✓" : "Photo de la balance enregistrée ✓");
   } catch (err) {
     toast(errorMessage(err), "error");
   } finally {

@@ -301,6 +301,11 @@ textarea {
   cursor: zoom-in;
   background: var(--surface-2);
 }
+/* Cadran de balance découpé en rond : les coins (blancs) ne s'affichent pas. */
+.photo.round,
+#lightbox img.round {
+  border-radius: 50%;
+}
 .small-photo {
   max-height: 240px;
   width: auto;

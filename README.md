@@ -86,7 +86,7 @@ Changer une clé (par exemple une nouvelle clé Gemini) : mets à jour le secret
 - **Recette** : 📷 *Photographier la recette*. Si la liste d'ingrédients est sur l'autre face, ajoute-la avec *Autre page*, puis ✨ *Lire la recette*. Relis le résultat, corrige si besoin, puis *Enregistrer la recette*.
 - **Si Gemini ne répond pas** (quota atteint, modèle retiré…) : ↗️ *Envoyer à une app IA*. Le menu de partage du téléphone s'ouvre : choisis Claude, ChatGPT ou Gemini. La photo part avec la consigne, qui est aussi copiée au cas où l'app ne la reprendrait pas. Dans l'app, copie la réponse, reviens sur le site, 📋 *Coller*, puis *Remplir la recette*.
 - Tu peux aussi coller une réponse d'IA obtenue autrement (📋 *Coller une réponse d'IA*) ou écrire la recette à la main.
-- **Pesée (mardi)** : 📷 *Photo de la balance*. Gemini repère l'écran de la balance et la photo est recadrée dessus (ni pieds ni sol) avant d'être enregistrée. Si l'écran n'est pas trouvé, l'appli propose de garder la photo entière. Tape ensuite le poids, puis *Enregistrer le poids*. L'ordre n'a pas d'importance.
+- **Pesée (mardi)** : 📷 *Photo de la balance*. Gemini repère l'écran de la balance en deux passes (photo entière, puis zoom), et la photo est recadrée au ras de l'écran avant d'être enregistrée. Un cadran à aiguille est découpé en rond : tout ce qui est hors du cercle est effacé. Si l'écran n'est pas trouvé, l'appli propose de garder la photo entière. Tape ensuite le poids, puis *Enregistrer le poids*. L'ordre n'a pas d'importance.
 - Pour remplir un autre jour, change la date avec les flèches ‹ › ou le sélecteur de date.
 
 ## Tester sur le PC (facultatif)

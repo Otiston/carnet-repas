@@ -74,10 +74,13 @@ export async function deleteDay(day) {
 
 // --- Photos ----------------------------------------------------------------
 
-/** Envoie la photo et sa miniature ; renvoie leurs chemins. `kind` : "repas" ou "pesee". */
-export async function uploadPhoto(day, kind, full, thumb) {
+/**
+ * Envoie la photo et sa miniature ; renvoie leurs chemins. `kind` : "repas" ou "pesee".
+ * `variant` s'ajoute au nom du fichier (ex. "rond" pour un cadran découpé en cercle).
+ */
+export async function uploadPhoto(day, kind, full, thumb, variant = "") {
   const bucket = supabase.storage.from(bucketFor(kind));
-  const base = `${userId}/${day}/${kind}-${Date.now()}`;
+  const base = `${userId}/${day}/${kind}${variant ? `-${variant}` : ""}-${Date.now()}`;
   const path = `${base}.jpg`;
   const thumbPath = `${base}-mini.jpg`;
   // Chaque photo a un nom unique : le navigateur peut la garder en cache un an.
@@ -148,7 +151,11 @@ export async function readRecipe(images) {
   return (await invoke("lire-recette", { images }, "La lecture de la recette a échoué.")).recipe;
 }
 
-/** Où est l'écran de la balance sur la photo ? Renvoie [ymin, xmin, ymax, xmax] (0 à 1000) ou null. */
+/**
+ * Où est l'écran de la balance sur la photo ? Renvoie
+ * { box: [ymin, xmin, ymax, xmax] (0 à 1000), shape: "rond" | "rectangle" }, ou null.
+ */
 export async function frameScale(image) {
-  return (await invoke("cadrer-balance", { images: [image] }, "Le recadrage de la photo a échoué.")).box;
+  const data = await invoke("cadrer-balance", { images: [image] }, "Le recadrage de la photo a échoué.");
+  return data.box ? { box: data.box, shape: data.shape } : null;
 }
