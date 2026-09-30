@@ -347,9 +347,9 @@ async function renderCalendar() {
 async function renderDay({ refresh = false } = {}) {
   const day = state.day;
   $("#day-title").textContent = longDate(day);
-  $("#day-subtitle").textContent = [day === todayStr() && "Aujourd'hui", isTuesday(day) && "Jour de pesée"]
-    .filter(Boolean)
-    .join(" · ");
+  const today = day === todayStr() && "Aujourd'hui";
+  const weighDay = isTuesday(day) && h("span", { class: "weigh-day" }, "Jour de pesée");
+  $("#day-subtitle").replaceChildren(...[today, today && weighDay && " · ", weighDay].filter(Boolean));
   $("#day-picker").value = day;
   const body = $("#day-body");
 
@@ -371,7 +371,7 @@ async function renderDay({ refresh = false } = {}) {
   const recipe = recipeCard(day, row);
   const weigh =
     state.canEdit && !isTuesday(day)
-      ? h("p", { class: "muted center small weigh-hint" }, "⚖️ La pesée s'ajoute le mardi.")
+      ? h("p", { class: "muted center small weigh-hint" }, "La pesée s'ajoute le mardi.")
       : weighCard(day, row, urls);
   // Sur grand écran : photo (et pesée) à gauche, recette à droite.
   body.classList.toggle("split", Boolean((food || weigh) && recipe));
@@ -379,11 +379,11 @@ async function renderDay({ refresh = false } = {}) {
   body.replaceChildren(...(cards.length ? cards : [h("p", { class: "muted center" }, "Rien de noté ce jour-là.")]));
 }
 
-function card(kind, icon, title, ...content) {
+function card(kind, title, ...content) {
   return h(
     "section",
     { class: `card card-${kind}` },
-    h("h3", { class: "card-title" }, h("span", { "aria-hidden": "true" }, icon), " ", title),
+    h("h3", { class: "card-title" }, h("span", { class: "mark", "aria-hidden": "true" }), title),
     ...content,
   );
 }
@@ -392,8 +392,8 @@ function photoButtons(onPick, { cameraLabel = "Prendre une photo", galleryLabel 
   return h(
     "div",
     { class: "actions" },
-    h("button", { class: "primary", onclick: () => onPick(true) }, "📷 ", cameraLabel),
-    h("button", { onclick: () => onPick(false) }, "🖼️ ", galleryLabel),
+    h("button", { class: "primary", onclick: () => onPick(true) }, cameraLabel),
+    h("button", { onclick: () => onPick(false) }, galleryLabel),
     extra,
   );
 }
@@ -411,23 +411,22 @@ function openLightbox(src, round = false) {
 function foodCard(day, row, urls) {
   if (!state.canEdit) {
     const url = row?.food_path && urls.get(row.food_path);
-    return url ? card("food", "🍽️", "Repas", h("img", { class: "photo", src: url, alt: "Photo du repas", onclick: () => openLightbox(url) })) : null;
+    return url ? card("food", "Repas", h("img", { class: "photo", src: url, alt: "Photo du repas", onclick: () => openLightbox(url) })) : null;
   }
-  if (state.draft.busy.has("food")) return card("food", "🍽️", "Repas", spinner("Envoi de la photo…"));
+  if (state.draft.busy.has("food")) return card("food", "Repas", spinner("Envoi de la photo…"));
   const url = row?.food_path && urls.get(row.food_path);
   if (!url) {
-    return card("food", "🍽️", "Repas", photoButtons((camera) => addFood(day, camera)));
+    return card("food", "Repas", photoButtons((camera) => addFood(day, camera)));
   }
   return card(
     "food",
-    "🍽️",
     "Repas",
     h("img", { class: "photo", src: url, alt: "Photo du repas", onclick: () => openLightbox(url) }),
     h(
       "div",
       { class: "actions" },
-      h("button", { onclick: () => addFood(day, true) }, "📷 Remplacer"),
-      h("button", { onclick: () => addFood(day, false) }, "🖼️ Galerie"),
+      h("button", { onclick: () => addFood(day, true) }, "Remplacer"),
+      h("button", { onclick: () => addFood(day, false) }, "Galerie"),
       h("button", { class: "danger", onclick: () => deleteFood(day) }, "Supprimer"),
     ),
   );
@@ -558,14 +557,13 @@ function recipeDetails(r) {
 function recipeCard(day, row) {
   const draft = state.draft.recipe;
   const title = "Recette";
-  if (!state.canEdit) return row?.recipe ? card("recipe", "📖", title, recipeDetails(row.recipe)) : null;
+  if (!state.canEdit) return row?.recipe ? card("recipe", title, recipeDetails(row.recipe)) : null;
 
-  if (state.draft.busy.has("recipe")) return card("recipe", "📖", title, spinner("Enregistrement…"));
+  if (state.draft.busy.has("recipe")) return card("recipe", title, spinner("Enregistrement…"));
 
   if (draft.mode === "reading") {
     return card(
       "recipe",
-      "📖",
       title,
       spinner("Lecture et traduction de la recette… (10 à 40 secondes)"),
       pageStrip(false),
@@ -578,22 +576,21 @@ function recipeCard(day, row) {
     const readButton = h(
       "button",
       { class: draft.aiFailed ? "" : "primary big", disabled, onclick: () => readRecipe(day) },
-      draft.aiFailed ? "✨ Réessayer Gemini" : "✨ Lire la recette",
+      draft.aiFailed ? "Réessayer Gemini" : "Lire la recette",
     );
     const shareButton = h(
       "button",
       { class: draft.aiFailed ? "primary big" : "", disabled, onclick: shareRecipe },
-      "↗️ Envoyer à une app IA",
+      "Envoyer à une app IA",
     );
     return card(
       "recipe",
-      "📖",
       title,
       draft.aiFailed
         ? h(
             "p",
             { class: "hint" },
-            `${draft.aiFailed} Envoie plutôt la photo à ChatGPT (ou Claude) avec ↗️, puis colle sa réponse : la recette se remplira toute seule, en français et en anglais.`,
+            `${draft.aiFailed} Envoie plutôt la photo à ChatGPT (ou Claude) avec « Envoyer à une app IA », puis colle sa réponse : la recette se remplira toute seule, en français et en anglais.`,
           )
         : h("p", { class: "muted small" }, "Ajoute le recto et le verso si la liste d'ingrédients est sur une autre face."),
       pageStrip(true),
@@ -612,20 +609,19 @@ function recipeCard(day, row) {
     );
   }
 
-  if (draft.mode === "paste") return card("recipe", "📖", title, pasteForm());
+  if (draft.mode === "paste") return card("recipe", title, pasteForm());
 
-  if (draft.mode === "edit") return card("recipe", "📖", title, recipeForm(day));
+  if (draft.mode === "edit") return card("recipe", title, recipeForm(day));
 
   if (!row?.recipe) {
     return card(
       "recipe",
-      "📖",
       title,
       photoButtons((camera) => addRecipePages(camera), {
         cameraLabel: "Photographier la recette",
         extra: [
-          h("button", { class: "ghost", onclick: startPaste }, "📋 Coller une réponse d'IA"),
-          h("button", { class: "ghost", onclick: () => editRecipe(null) }, "✍️ Écrire à la main"),
+          h("button", { class: "ghost", onclick: startPaste }, "Coller une réponse d'IA"),
+          h("button", { class: "ghost", onclick: () => editRecipe(null) }, "Écrire à la main"),
         ],
       }),
     );
@@ -634,14 +630,13 @@ function recipeCard(day, row) {
   const r = row.recipe;
   return card(
     "recipe",
-    "📖",
     title,
     recipeDetails(r),
     h(
       "div",
       { class: "actions" },
       h("button", { onclick: () => editRecipe(r) }, "Modifier"),
-      h("button", { onclick: () => addRecipePages(true) }, "📷 Relire une fiche"),
+      h("button", { onclick: () => addRecipePages(true) }, "Relire une fiche"),
       h("button", { class: "danger", onclick: () => deleteRecipe(day) }, "Supprimer"),
     ),
   );
@@ -788,8 +783,8 @@ function pasteForm() {
       "div",
       { class: "actions" },
       h("button", { class: "primary big", type: "submit" }, "Remplir la recette"),
-      navigator.clipboard?.readText && h("button", { type: "button", onclick: pasteFromClipboard }, "📋 Coller"),
-      draft.pages.length > 0 && h("button", { type: "button", onclick: shareRecipe }, "↗️ Renvoyer"),
+      navigator.clipboard?.readText && h("button", { type: "button", onclick: pasteFromClipboard }, "Coller"),
+      draft.pages.length > 0 && h("button", { type: "button", onclick: shareRecipe }, "Renvoyer"),
       h("button", { type: "button", class: "ghost", onclick: cancelRecipe }, "Annuler"),
     ),
   );
@@ -986,13 +981,13 @@ function recipeForm(day) {
     },
     draft.fromAI && h("p", { class: "hint" }, "Relis et corrige si besoin avant d'enregistrer."),
     block(
-      "🇫🇷 Français",
+      "Français",
       "fr",
       ["titre", "portions", "ingredients", "etapes"],
       ["Titre", "Portions", "Ingrédients (un par ligne)", "Étapes (une par ligne)"],
     ),
     block(
-      "🇬🇧 English",
+      "English",
       "en",
       ["en_title", "en_servings", "en_ingredients", "en_steps"],
       ["Title", "Servings", "Ingredients (one per line)", "Steps (one per line)"],
@@ -1061,7 +1056,7 @@ function weighCard(day, row, urls) {
   const bigWeight = weight != null && h("p", { class: "weight" }, formatKg(weight));
 
   if (!state.canEdit) {
-    return photoUrl || weight != null ? card("weigh", "⚖️", title, h("div", { class: "weigh-view" }, photo, bigWeight)) : null;
+    return photoUrl || weight != null ? card("weigh", title, h("div", { class: "weigh-view" }, photo, bigWeight)) : null;
   }
 
   // La photo et le poids s'enregistrent chacun de leur côté : la photo part dès qu'elle est prise,
@@ -1125,7 +1120,6 @@ function weighCard(day, row, urls) {
 
   return card(
     "weigh",
-    "⚖️",
     title,
     photoPart,
     h("div", { class: "weigh-weight" }, weightPart),
@@ -1319,6 +1313,36 @@ function openLogin() {
   $("#login-form [name=email]").focus();
 }
 
+/* --- Thème clair / sombre --- */
+
+const THEME_COLORS = { light: "#f6f8f5", dark: "#131916" };
+const systemDark = matchMedia("(prefers-color-scheme: dark)");
+
+/** Thème affiché : celui choisi avec le bouton (index.html le pose avant l'affichage), sinon celui du système. */
+const currentTheme = () => document.documentElement.dataset.theme || (systemDark.matches ? "dark" : "light");
+
+function showTheme() {
+  const theme = currentTheme();
+  $("#theme-toggle").setAttribute("aria-checked", String(theme === "dark"));
+  // Sans choix, les balises theme-color suivent le système grâce à leur attribut media.
+  if (document.documentElement.dataset.theme) {
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => (meta.content = THEME_COLORS[theme]));
+  }
+}
+
+function wireTheme() {
+  $("#theme-toggle").addEventListener("click", () => {
+    const theme = currentTheme() === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("theme", theme);
+    } catch {}
+    showTheme();
+  });
+  systemDark.addEventListener("change", showTheme);
+  showTheme();
+}
+
 function wireStaticControls() {
   $("#login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1382,5 +1406,6 @@ function wireStaticControls() {
 }
 
 wireStaticControls();
+wireTheme();
 wireUpdates();
 setSignedIn(Boolean(await api.currentUser()));

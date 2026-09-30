@@ -1,39 +1,63 @@
 :root {
-  --bg: #f6f1e8;
-  --surface: #fffdf9;
-  --surface-2: #f0e9dd;
-  --text: #2a2521;
-  --muted: #776d63;
-  --line: #e4dbcd;
-  --accent: #557d24;
-  --accent-soft: #e6eed8;
+  --bg: #f6f8f5;
+  --surface: #ffffff;
+  --surface-2: #edf1ec;
+  --text: #1e2a23;
+  --muted: #5d6a62;
+  --line: #e1e7e0;
+  --line-soft: #edf1ec;
+  --accent: #4c7a5e;
+  --accent-soft: #e9f1eb;
   --accent-ink: #ffffff;
-  --weigh: #2c6a8c;
-  --weigh-soft: #dcebf3;
+  --weigh: #4d7591;
+  --weigh-soft: #eef3f7;
   --danger: #b3261e;
-  --shadow: 0 1px 2px rgb(60 40 20 / 0.06), 0 4px 16px rgb(60 40 20 / 0.06);
-  --radius: 14px;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --photo-a: #cfdcd2;
+  --shadow: 0 1px 2px rgb(30 50 40 / 0.04);
+  --radius: 16px;
+  --serif: "Newsreader", Georgia, serif;
+  --sans: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 }
 
+/* Sombre : suit le système, sauf si le bouton clair/sombre impose un thème (data-theme sur <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #171513;
-    --surface: #211e1b;
-    --surface-2: #2b2723;
-    --text: #efe8de;
-    --muted: #a79d91;
-    --line: #37312b;
-    --accent: #93c160;
-    --accent-soft: #2b3620;
-    --accent-ink: #15200a;
-    --weigh: #7fb8d8;
-    --weigh-soft: #1e3140;
-    --danger: #f2877e;
+  :root:not([data-theme="light"]) {
+    --bg: #131916;
+    --surface: #1a221e;
+    --surface-2: #232d28;
+    --text: #e4ebe6;
+    --muted: #9aa89f;
+    --line: #2b3631;
+    --line-soft: #232d28;
+    --accent: #8fbf9f;
+    --accent-soft: #223128;
+    --accent-ink: #0f1d15;
+    --weigh: #8fb3cc;
+    --weigh-soft: #1a252c;
+    --danger: #f0897f;
+    --photo-a: #26322c;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
     color-scheme: dark;
-  }
+}
+}
+:root[data-theme="dark"] {
+  --bg: #131916;
+  --surface: #1a221e;
+  --surface-2: #232d28;
+  --text: #e4ebe6;
+  --muted: #9aa89f;
+  --line: #2b3631;
+  --line-soft: #232d28;
+  --accent: #8fbf9f;
+  --accent-soft: #223128;
+  --accent-ink: #0f1d15;
+  --weigh: #8fb3cc;
+  --weigh-soft: #1a252c;
+  --danger: #f0897f;
+  --photo-a: #26322c;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  color-scheme: dark;
 }
 
 * {
@@ -48,7 +72,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.5 var(--sans);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -61,7 +85,8 @@ h2,
 h3,
 h4 {
   font-family: var(--serif);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   line-height: 1.2;
   margin: 0;
 }
@@ -216,6 +241,79 @@ textarea {
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
+.topbar-start,
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.topbar-end {
+  gap: 0.5rem;
+}
+.brand {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+@media (max-width: 519px) {
+  .brand {
+    display: none;
+  }
+}
+
+/* Interrupteur clair / sombre : soleil à gauche, lune à droite, la pastille glisse. */
+.theme-toggle {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 64px;
+  min-height: 34px;
+  height: 34px;
+  padding: 0 8px;
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+.theme-icon {
+  position: relative;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.2s;
+}
+.theme-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+  transition: transform 0.2s;
+}
+.theme-toggle[aria-checked="true"] .theme-knob {
+  transform: translateX(30px);
+}
+.theme-toggle[aria-checked="false"] .sun,
+.theme-toggle[aria-checked="true"] .moon {
+  stroke: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-knob {
+    transition: none;
+  }
+}
+
 .tabs {
   display: inline-flex;
   background: var(--surface-2);
@@ -298,6 +396,10 @@ textarea {
   flex-wrap: wrap;
   margin-top: 0.25rem;
 }
+.weigh-day {
+  color: var(--weigh);
+  font-weight: 600;
+}
 #day-picker {
   width: auto;
   padding: 0.2rem 0.5rem;
@@ -312,14 +414,24 @@ textarea {
   box-shadow: var(--shadow);
   padding: 1rem 1rem 1.1rem;
   margin-bottom: 1rem;
-  border-top: 4px solid var(--accent);
-}
-.card-weigh {
-  border-top-color: var(--weigh);
+  border: 1px solid var(--line);
 }
 .card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 1.15rem;
   margin-bottom: 0.75rem;
+}
+.mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.card-weigh .mark {
+  background: var(--weigh);
 }
 .card .actions:first-of-type:only-child,
 .card-title + .actions {
@@ -464,7 +576,7 @@ textarea {
   padding: 0.3rem 0 0.3rem 1.1rem;
   position: relative;
   break-inside: avoid;
-  border-bottom: 1px dashed var(--line);
+  border-bottom: 1px solid var(--line-soft);
 }
 .ingredients li::before {
   content: "";
@@ -478,14 +590,29 @@ textarea {
 }
 .steps {
   margin: 0;
-  padding-left: 1.4rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
 }
 .steps li {
-  margin-bottom: 0.45rem;
-  padding-left: 0.2rem;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 0.55rem;
+  counter-increment: step;
 }
-.steps li::marker {
+.steps li::before {
+  content: counter(step);
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
   font-weight: 700;
+  line-height: 1;
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .hint {
@@ -538,7 +665,8 @@ textarea {
 .weight {
   font-family: var(--serif);
   font-size: 2.4rem;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   color: var(--weigh);
   margin: 0;
 }
@@ -620,6 +748,7 @@ textarea {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: var(--photo-a);
 }
 .cell-num {
   position: absolute;
@@ -645,7 +774,7 @@ textarea {
   align-items: center;
   gap: 4px;
   background: var(--weigh);
-  color: #fff;
+  color: var(--accent-ink);
   border-radius: 999px;
   padding: 2px 7px 2px 2px;
   font-size: 0.75rem;
@@ -680,12 +809,9 @@ textarea {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.cell-recipe > span::before {
-  content: "📖 ";
-}
 .cell.has-photo .cell-recipe {
   color: #fff;
-  background: linear-gradient(transparent, rgb(0 0 0 / 0.75));
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.6));
 }
 
 @media (max-width: 759px) {
@@ -733,7 +859,14 @@ textarea {
     bottom: auto;
   }
   .cell-recipe > span::before {
-    font-size: 0.7rem;
+    content: "";
+    display: block;
+    width: 8px;
+    height: 8px;
+    margin: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 1.5px var(--surface);
   }
   .cell-weigh {
     top: auto;
