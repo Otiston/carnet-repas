@@ -274,16 +274,12 @@ function route() {
 const goDay = (day) => (location.hash = `#jour/${day}`);
 const goMonth = (month) => (location.hash = `#calendrier/${month}`);
 
-/**
- * Adresses d'affichage des photos des lignes données : repas pour tout le monde,
- * balance seulement pour le propriétaire connecté (stockage privé).
- */
-async function photoUrlsFor(rows, foodKey, weighKey) {
-  const urls = api.photoUrls(rows.map((r) => r[foodKey]));
-  if (state.canEdit) {
-    for (const [path, url] of await api.privatePhotoUrls(rows.map((r) => r[weighKey]))) urls.set(path, url);
-  }
-  return urls;
+/** Adresses d'affichage des photos (repas et balance) des lignes données. */
+function photoUrlsFor(rows, foodKey, weighKey) {
+  return new Map([
+    ...api.photoUrls("repas", rows.map((r) => r[foodKey])),
+    ...api.photoUrls("pesee", rows.map((r) => r[weighKey])),
+  ]);
 }
 
 // --- Vue calendrier ----------------------------------------------------------
@@ -304,7 +300,7 @@ async function renderCalendar() {
   let urls;
   try {
     rows = await api.loadDays(start, end);
-    urls = await photoUrlsFor([...rows.values()], "food_thumb", "weigh_thumb");
+    urls = photoUrlsFor([...rows.values()], "food_thumb", "weigh_thumb");
   } catch (err) {
     grid.classList.remove("loading");
     toast(errorMessage(err), "error");
@@ -369,14 +365,9 @@ async function renderDay({ refresh = false } = {}) {
       toast(errorMessage(err), "error");
     }
   }
-  const row = rowFor(day);
-  let urls = new Map();
-  try {
-    urls = await photoUrlsFor(row ? [row] : [], "food_path", "weigh_path");
-  } catch (err) {
-    toast(errorMessage(err), "error");
-  }
   if (state.day !== day || state.view !== "jour") return;
+  const row = rowFor(day);
+  const urls = photoUrlsFor(row ? [row] : [], "food_path", "weigh_path");
 
   const food = foodCard(day, row, urls);
   const recipe = recipeCard(day, row);
@@ -1073,8 +1064,9 @@ function weighCard(day, row, urls) {
     });
   const bigWeight = weight != null && h("p", { class: "weight" }, formatKg(weight));
 
-  // Visiteurs : le poids seulement ; la photo de la balance est privée.
-  if (!state.canEdit) return weight != null ? card("weigh", "⚖️", title, bigWeight) : null;
+  if (!state.canEdit) {
+    return photoUrl || weight != null ? card("weigh", "⚖️", title, h("div", { class: "weigh-view" }, photo, bigWeight)) : null;
+  }
 
   // La photo et le poids s'enregistrent chacun de leur côté : la photo part dès qu'elle est prise,
   // pour ne pas la perdre si le téléphone recharge la page pendant la saisie.
@@ -1172,7 +1164,8 @@ async function addWeighPhoto(day, camera) {
     } catch (err) {
       problem = errorMessage(err);
     }
-    if (!screen && !confirm(`${problem}\n\nEnregistrer la photo entière quand même ?`)) return;
+    const keepWhole = `${problem}\n\nEnregistrer la photo entière quand même ? Elle sera visible par tous, pieds compris.`;
+    if (!screen && !confirm(keepWhole)) return;
 
     setStatus("Envoi de la photo…");
     const round = screen?.shape === "rond";

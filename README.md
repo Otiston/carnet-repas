@@ -10,7 +10,7 @@ Mon suivi personnel, en un seul site :
 Sur grand écran, une journée s'affiche avec la photo du repas à gauche et la recette à droite, coupée en deux : les ingrédients d'un côté, les étapes de l'autre. Le bouton **FR | EN** change la langue de la recette. Sur téléphone, tout est empilé.
   - ⚖️ **Pesée**, seulement le mardi : photo de la balance et poids saisi à la main.
 
-**Public en lecture, privé en écriture** : n'importe qui peut consulter le site, avec le calendrier, les photos des repas, les recettes et le poids des pesées. Les **photos de la balance** restent privées : elles sont rangées dans un stockage à part, que seul ton compte connecté peut lire. Seul toi, après **Se connecter**, peux ajouter, modifier ou supprimer. Le site n'est pas référencé par les moteurs de recherche : il faut en connaître l'adresse.
+**Public en lecture, privé en écriture** : n'importe qui peut consulter le site, avec le calendrier, les photos des repas, les recettes et les pesées (photo de l'écran de la balance, recadrée, et poids). Seul toi, après **Se connecter**, peux ajouter, modifier ou supprimer. Le site n'est pas référencé par les moteurs de recherche : il faut en connaître l'adresse.
 
 **Coût : 0 €.** Supabase, GitHub (Pages et Actions) et l'offre gratuite de l'API Gemini ne demandent pas de carte bancaire. Gemini reçoit les photos de fiches recettes (pour les lire) et les photos de la balance (pour repérer l'écran et recadrer). Sur l'offre gratuite, Google peut utiliser ces contenus pour améliorer ses produits. Les photos de repas ne lui sont jamais envoyées.
 
@@ -28,7 +28,7 @@ Téléphone / PC ◄── l'appli voit la nouvelle version et se recharge toute
    ▼
 Supabase (gratuit)
    ├─ base de données : une ligne par journée (table days)
-   ├─ stockage privé : les photos (bucket photos)
+   ├─ stockage des photos, lisibles par tous : repas (bucket photos) et balance (bucket pesees)
    └─ Edge Function « lire-recette » ──► API Gemini, offre gratuite
 ```
 

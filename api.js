@@ -3,14 +3,13 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_KEY } from "./config.js?v=__VERSION__";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-// Photos des repas : lisibles par tous. Photos de la balance : propriétaire seulement.
-const PUBLIC_BUCKET = "photos";
-const PRIVATE_BUCKET = "pesees";
-const bucketFor = (kind) => (kind === "pesee" ? PRIVATE_BUCKET : PUBLIC_BUCKET);
-const SIGNED_URL_SECONDS = 60 * 60;
+// Deux stockages lisibles par tous : photos des repas, et photos de la balance (recadrées
+// sur l'écran). L'envoi et la suppression sont réservés au propriétaire connecté.
+const MEAL_BUCKET = "photos";
+const WEIGH_BUCKET = "pesees";
+const bucketFor = (kind) => (kind === "pesee" ? WEIGH_BUCKET : MEAL_BUCKET);
 
 let userId = null;
-const signedCache = new Map(); // chemin -> { url, expires }
 
 // --- Connexion -------------------------------------------------------------
 
@@ -97,35 +96,15 @@ export async function uploadPhoto(day, kind, full, thumb, variant = "") {
 export async function removeFiles(kind, paths) {
   const list = paths.filter(Boolean);
   if (!list.length) return;
-  for (const p of list) signedCache.delete(p);
   await supabase.storage.from(bucketFor(kind)).remove(list);
-  // Les photos de balance d'avant le stockage privé étaient dans le bucket public.
-  if (kind === "pesee") await supabase.storage.from(PUBLIC_BUCKET).remove(list);
+  // Les toutes premières photos de balance étaient rangées avec celles des repas.
+  if (kind === "pesee") await supabase.storage.from(MEAL_BUCKET).remove(list);
 }
 
-/** Adresses publiques des photos de repas. */
-export function photoUrls(paths) {
-  const bucket = supabase.storage.from(PUBLIC_BUCKET);
+/** Adresses publiques des photos ; `kind` : "repas" ou "pesee". */
+export function photoUrls(kind, paths) {
+  const bucket = supabase.storage.from(bucketFor(kind));
   return new Map(paths.filter(Boolean).map((p) => [p, bucket.getPublicUrl(p).data.publicUrl]));
-}
-
-/** Adresses temporaires (1 h) des photos de balance, pour le propriétaire connecté seulement. */
-export async function privatePhotoUrls(paths) {
-  const now = Date.now();
-  const wanted = [...new Set(paths.filter(Boolean))];
-  const missing = wanted.filter((p) => !(signedCache.get(p)?.expires > now));
-  if (missing.length) {
-    const { data, error } = await supabase.storage
-      .from(PRIVATE_BUCKET)
-      .createSignedUrls(missing, SIGNED_URL_SECONDS);
-    if (error) throw error;
-    for (const item of data) {
-      if (item.signedUrl) {
-        signedCache.set(item.path, { url: item.signedUrl, expires: now + (SIGNED_URL_SECONDS - 120) * 1000 });
-      }
-    }
-  }
-  return new Map(wanted.filter((p) => signedCache.has(p)).map((p) => [p, signedCache.get(p).url]));
 }
 
 // --- Fonctions Gemini (lecture de recette, recadrage de la balance) ---------
