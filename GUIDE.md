@@ -20,19 +20,17 @@ Les sites de ces services sont en anglais. Dans ce guide, les boutons et menus s
 
 ## Avant de commencer
 
-**1. Prépare un bloc-notes pour tes 5 valeurs secrètes.**
+**1. Prépare un bloc-notes pour tes 3 valeurs secrètes.**
 
 Appuie sur la touche Windows, tape `Bloc-notes`, puis Entrée. Colle ce modèle dedans :
 
 ```
-SUPABASE_PROJECT_REF     =
-SUPABASE_DB_PASSWORD     =
-SUPABASE_PUBLISHABLE_KEY =
-SUPABASE_ACCESS_TOKEN    =
-GEMINI_API_KEY           =
+SUPABASE_DB_PASSWORD  =
+SUPABASE_ACCESS_TOKEN =
+GEMINI_API_KEY        =
 ```
 
-Tu le rempliras au fur et à mesure.
+Tu le rempliras au fur et à mesure. Deux autres valeurs, l'identifiant du projet et la clé publique, ne sont pas secrètes : elles vont dans le fichier `config.js` du code (étapes A4 et A5).
 
 > ⚠️ **N'enregistre pas ce bloc-notes dans le dossier `daily food tracker`**, sinon il risquerait d'être publié avec le code. Garde-le ouvert sans l'enregistrer, et ferme-le à la fin (partie F).
 
@@ -92,7 +90,7 @@ Regarde l'adresse dans la barre du navigateur. Elle ressemble à :
 https://supabase.com/dashboard/project/abcdefghijklmnopqrst
 ```
 
-La suite de lettres après `project/` (ici `abcdefghijklmnopqrst`, environ 20 lettres minuscules) est l'identifiant. **Copie-le dans le bloc-notes** sur la ligne `SUPABASE_PROJECT_REF`.
+La suite de lettres après `project/` (ici `abcdefghijklmnopqrst`, environ 20 lettres minuscules) est l'identifiant. Il n'est pas secret : donne-le à Claude, ou écris-le toi-même dans `config.js`, dans l'adresse `https://<identifiant>.supabase.co`.
 
 💡 Tu le retrouves aussi dans **Project Settings** (roue dentée ⚙️ en bas du menu de gauche) → **General** → **Project ID**.
 
@@ -101,7 +99,7 @@ La suite de lettres après `project/` (ici `abcdefghijklmnopqrst`, environ 20 le
 1. Clique **Project Settings** (roue dentée ⚙️ en bas du menu de gauche).
 2. Dans le sous-menu, clique **API Keys**.
 3. Repère la **Publishable key**. Elle commence par `sb_publishable_`. Clique l'icône **Copy** à côté.
-4. **Colle-la dans le bloc-notes** sur la ligne `SUPABASE_PUBLISHABLE_KEY`.
+4. Elle n'est pas secrète non plus (elle est visible dans le site) : donne-la à Claude, ou colle-la dans `config.js` à la place de `sb_publishable_...`.
 
 ⚠️ **Si tu ne vois que des clés « anon » et « service_role »** (anciennes clés) : cherche un onglet ou un bouton pour créer les nouvelles clés (**Create new API keys** ou similaire), puis copie la **Publishable key**.
 
@@ -117,7 +115,7 @@ Ce jeton permet à GitHub de mettre à jour ton projet Supabase tout seul, à ch
 4. Clique **Generate token**.
 5. **Copie le jeton tout de suite** (il commence par `sbp_`) et colle-le dans le bloc-notes sur la ligne `SUPABASE_ACCESS_TOKEN`. Il ne sera plus jamais affiché.
 
-✅ **Ton bloc-notes a maintenant 4 lignes remplies sur 5.**
+✅ **Ton bloc-notes a maintenant 2 lignes remplies sur 3.**
 
 ---
 
@@ -133,7 +131,7 @@ Ce jeton permet à GitHub de mettre à jour ton projet Supabase tout seul, à ch
 
 > ⚠️ **Ne clique pas sur « Set up billing » / « Activer la facturation ».** Sans facturation, tu restes sur l'offre gratuite et rien ne peut t'être facturé. Une recette par jour est très loin des limites gratuites.
 
-✅ **Ton bloc-notes a maintenant ses 5 lignes remplies.**
+✅ **Ton bloc-notes a maintenant ses 3 lignes remplies.**
 
 ---
 
@@ -154,7 +152,7 @@ Un « dépôt » est l'espace de ton compte GitHub qui contient le code du site.
 
 ✅ **Tu dois voir** une page « Quick setup » avec des lignes de commandes. Ne les utilise pas : les bonnes commandes sont à l'étape C4.
 
-### C2. Ajouter les 5 secrets
+### C2. Ajouter les 3 secrets
 
 Les secrets sont des coffres-forts : GitHub les utilise pendant le déploiement mais ne les affiche jamais, même à toi.
 
@@ -163,16 +161,14 @@ Les secrets sont des coffres-forts : GitHub les utilise pendant le déploiement 
 3. Vérifie que tu es sur l'onglet **Secrets** (et non **Variables**).
 4. Clique le bouton vert **New repository secret**.
 5. Remplis :
-   - **Name** : `SUPABASE_PROJECT_REF`. Copie ce nom depuis ton bloc-notes : il doit être **exactement** identique, en majuscules, avec les `_`.
+   - **Name** : `SUPABASE_DB_PASSWORD`. Copie ce nom depuis ton bloc-notes : il doit être **exactement** identique, en majuscules, avec les `_`.
    - **Secret** : la valeur correspondante de ton bloc-notes, sans espace avant ni après.
 6. Clique **Add secret**.
-7. **Recommence les points 4 à 6** pour les 4 autres secrets :
-   - `SUPABASE_DB_PASSWORD`
-   - `SUPABASE_PUBLISHABLE_KEY`
+7. **Recommence les points 4 à 6** pour les 2 autres secrets :
    - `SUPABASE_ACCESS_TOKEN`
    - `GEMINI_API_KEY`
 
-✅ **Tu dois voir** 5 noms dans la liste **Repository secrets**.
+✅ **Tu dois voir** 3 noms dans la liste **Repository secrets**.
 
 ⚠️ **Faute de frappe dans un nom ?** Supprime le secret (icône 🗑️) et recrée-le. Pour corriger une valeur, clique l'icône ✏️ du secret.
 
@@ -222,7 +218,7 @@ git push -u origin main
 | Étape en rouge | Ce que ça veut dire | Quoi faire |
 |---|---|---|
 | **Vérifier les secrets** | Le message dit « Secret manquant : NOM » | Ajoute ou corrige ce secret (C2) |
-| **Relier le projet Supabase** | Identifiant ou jeton faux | Vérifie `SUPABASE_PROJECT_REF` et `SUPABASE_ACCESS_TOKEN` |
+| **Lire l'identifiant du projet** / **Relier le projet Supabase** | Adresse du projet ou jeton faux | Vérifie l'adresse dans `config.js` et le secret `SUPABASE_ACCESS_TOKEN` |
 | **Appliquer les migrations de la base** | Mot de passe de la base faux | Corrige `SUPABASE_DB_PASSWORD`. Tu peux le réinitialiser dans Supabase → **Project Settings** → **Database** → **Reset database password** |
 | **Site web** / **deploy-pages** | GitHub Pages n'est pas activé | Refais l'étape C3 |
 
@@ -311,7 +307,7 @@ Depuis l'appli sur le téléphone :
 
 ## Partie F — Nettoyage
 
-Tes 5 valeurs sont maintenant rangées en sécurité dans GitHub et Supabase. **Ferme le bloc-notes sans l'enregistrer.**
+Tes 3 valeurs secrètes sont maintenant rangées en sécurité dans GitHub. **Ferme le bloc-notes sans l'enregistrer.**
 
 Si un jour tu as besoin d'une de ces valeurs, tu peux la régénérer : nouveau jeton Supabase (A6), nouvelle clé Gemini (B1) ou nouveau mot de passe de base (tableau de C5). Mets ensuite à jour le secret correspondant (C2).
 

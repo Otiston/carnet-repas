@@ -23,23 +23,27 @@ jobs:
     steps:
       - name: Vérifier les secrets
         env:
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           missing=0
-          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF SUPABASE_PUBLISHABLE_KEY GEMINI_API_KEY; do
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD GEMINI_API_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::Secret manquant : $name (GitHub > Settings > Secrets and variables > Actions)"
               missing=1
             fi
           done
-          # Accepte l'identifiant seul ou l'URL complète du projet.
-          ref="${SUPABASE_PROJECT_REF#https://}"
-          echo "PROJECT_REF=${ref%%.supabase.co*}" >> "$GITHUB_ENV"
           exit $missing
 
       - uses: actions/checkout@v7
+
+      - name: Lire l'identifiant du projet (config.js)
+        run: |
+          ref="$(sed -n 's#.*https://\([a-z0-9]*\)\.supabase\.co.*#\1#p' config.js)"
+          if [ -z "$ref" ]; then
+            echo "::error::Adresse Supabase introuvable dans config.js"
+            exit 1
+          fi
+          echo "PROJECT_REF=$ref" >> "$GITHUB_ENV"
 
       - uses: supabase/setup-cli@v3
         with:
@@ -74,26 +78,17 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Préparer le site
-        env:
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          ref="${SUPABASE_PROJECT_REF#https://}"
-          ref="${ref%%.supabase.co*}"
           version="${GITHUB_SHA::7}"
           build_date="$(TZ=Europe/Paris date +%d/%m/%Y)"
 
           mkdir _site
-          cp index.html app.js api.js styles.css manifest.webmanifest _site/
+          cp index.html app.js api.js config.js styles.css manifest.webmanifest _site/
           cp -r icons _site/
           # Numéro de version dans les liens des fichiers : le téléphone ne peut pas garder
           # un mélange d'ancienne et de nouvelle version en cache.
           sed -i "s/__VERSION__/$version/g; s#__BUILD_DATE__#$build_date#g" \
             _site/index.html _site/app.js _site/api.js
-          cat > _site/config.js <<EOF
-          export const SUPABASE_URL = "https://$ref.supabase.co";
-          export const SUPABASE_KEY = "$SUPABASE_PUBLISHABLE_KEY";
-          EOF
           echo "{\"version\":\"$version\",\"date\":\"$build_date\"}" > _site/version.json
 
       - uses: actions/configure-pages@v6

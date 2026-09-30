@@ -35,7 +35,7 @@ Supabase (gratuit)
 | `GUIDE.md` | Le guide d'installation pas à pas |
 | `index.html`, `styles.css`, `app.js` | Le site (interface calendrier + jour, mises à jour) |
 | `api.js` | Tous les échanges avec Supabase |
-| `config.js` | Seulement pour tester en local : en ligne, il est généré depuis les secrets GitHub |
+| `config.js` | Adresse et clé publique du projet Supabase (valeurs publiques) |
 | `manifest.webmanifest`, `icons/` | Installation comme application sur le téléphone |
 | `supabase/migrations/` | Structure de la base, appliquée automatiquement |
 | `supabase/functions/lire-recette/index.ts` | La fonction qui envoie la photo de recette à Gemini |
@@ -49,9 +49,9 @@ Supabase (gratuit)
 
 En résumé :
 
-1. **Supabase** : créer le projet, noter son identifiant, son mot de passe de base et sa clé publique, puis créer un jeton d'accès.
+1. **Supabase** : créer le projet (son adresse et sa clé publique vont dans `config.js`), noter le mot de passe de la base, puis créer un jeton d'accès.
 2. **Gemini** : créer une clé gratuite sur Google AI Studio, sans activer la facturation.
-3. **GitHub** : créer le dépôt `carnet-repas`, y ranger les 5 secrets, régler Pages sur **GitHub Actions**, puis faire `git push`.
+3. **GitHub** : créer le dépôt `carnet-repas`, y ranger les 3 secrets (mot de passe de la base, jeton Supabase, clé Gemini), régler Pages sur **GitHub Actions**, puis faire `git push`.
 4. **Supabase** : créer ton utilisateur et fermer les inscriptions.
 5. **Téléphone** : ouvrir le site, puis « Ajouter à l'écran d'accueil ».
 
@@ -89,7 +89,7 @@ Changer une clé (par exemple une nouvelle clé Gemini) : mets à jour le secret
 
 ## Tester sur le PC (facultatif)
 
-Remplis `config.js` avec l'URL (`https://<SUPABASE_PROJECT_REF>.supabase.co`) et la clé publique. Puis, depuis ce dossier :
+`config.js` pointe déjà vers ton projet Supabase. Depuis ce dossier :
 
 ```bash
 python -m http.server 8000
@@ -102,7 +102,7 @@ Ouvre <http://localhost:8000>. En local, le bas de page affiche « Version local
 | Problème | Piste |
 |---|---|
 | Déploiement rouge à « Vérifier les secrets » | Le message indique le secret manquant : ajoute-le (étape 5), puis **Re-run all jobs**. |
-| Déploiement rouge à « Relier le projet » ou « Appliquer les migrations » | Vérifie `SUPABASE_PROJECT_REF`, `SUPABASE_ACCESS_TOKEN` et `SUPABASE_DB_PASSWORD`. Le mot de passe se réinitialise dans Supabase → **Project Settings** → **Database**. |
+| Déploiement rouge à « Relier le projet » ou « Appliquer les migrations » | Vérifie l'adresse dans `config.js` et les secrets `SUPABASE_ACCESS_TOKEN` et `SUPABASE_DB_PASSWORD`. Le mot de passe se réinitialise dans Supabase → **Project Settings** → **Database**. |
 | Déploiement rouge à « Site web » | Vérifie que **Settings** → **Pages** → **Source** est bien sur **GitHub Actions** (étape 6). |
 | « Email ou mot de passe incorrect » | Vérifie que l'utilisateur est bien confirmé (Authentication → Users). |
 | « Clé Gemini invalide » | Corrige le secret `GEMINI_API_KEY` dans GitHub, puis **Run workflow**. |
