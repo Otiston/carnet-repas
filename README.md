@@ -52,7 +52,7 @@ En résumé :
 1. **Supabase** : créer le projet (son adresse et sa clé publique vont dans `config.js`), noter le mot de passe de la base, puis créer un jeton d'accès.
 2. **Gemini** : créer une clé gratuite sur Google AI Studio, sans activer la facturation.
 3. **GitHub** : créer le dépôt `carnet-repas`, y ranger les 3 secrets (mot de passe de la base, jeton Supabase, clé Gemini), régler Pages sur **GitHub Actions**, puis faire `git push`.
-4. **Supabase** : créer ton utilisateur et fermer les inscriptions.
+4. **Supabase** : créer ton utilisateur. Les inscriptions sont fermées automatiquement par le déploiement.
 5. **Téléphone** : ouvrir le site, puis « Ajouter à l'écran d'accueil ».
 
 ---

@@ -55,6 +55,13 @@ jobs:
       - name: Appliquer les migrations de la base
         run: supabase db push
 
+      - name: Fermer les inscriptions (seuls les comptes créés dans Supabase se connectent)
+        run: |
+          curl -fsS -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"disable_signup": true}' > /dev/null
+
       - name: Enregistrer la clé Gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

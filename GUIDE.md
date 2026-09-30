@@ -252,15 +252,11 @@ C'est le compte avec lequel tu te connecteras sur le site et sur le téléphone.
 
 ✅ **Tu dois voir** ton email dans la liste des utilisateurs.
 
-### D2. Fermer les inscriptions (important)
+### D2. Inscriptions fermées (automatique)
 
-Sans cette étape, n'importe qui trouvant l'adresse de ton site pourrait s'y créer un compte et consommer ton quota Gemini gratuit.
+Sans cette protection, n'importe qui trouvant l'adresse de ton site pourrait s'y créer un compte et consommer ton quota Gemini gratuit. **Le déploiement ferme les inscriptions tout seul**, à chaque mise à jour : seuls les comptes créés dans Supabase (étape D1) peuvent se connecter.
 
-1. Toujours dans **Authentication**, ouvre la page des réglages de connexion. Selon la version de Supabase, elle s'appelle **Sign In / Providers** ou **General configuration**, dans la partie **Configuration** du sous-menu.
-2. Trouve l'interrupteur **Allow new users to sign up** et **désactive-le**.
-3. Clique **Save changes** si un bouton d'enregistrement apparaît.
-
-✅ **L'interrupteur doit être gris (désactivé).**
+Pour vérifier, si tu veux : dans **Authentication**, ouvre la page des réglages de connexion (**Sign In / Providers** ou **General configuration**, selon la version). L'interrupteur **Allow new users to sign up** doit être **désactivé**.
 
 ---
 
