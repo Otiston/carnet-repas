@@ -90,7 +90,7 @@ export default {
       if (res.status === 429) {
         return error(429, "Quota gratuit de Gemini atteint pour le moment, réessaie plus tard.");
       }
-      if (res.status === 400 && /api key/i.test(detail)) {
+      if (res.status === 401 || res.status === 403 || (res.status === 400 && /api key/i.test(detail))) {
         return error(500, "Clé Gemini invalide : vérifie le secret GEMINI_API_KEY.");
       }
       if (res.status === 404) {
