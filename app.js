@@ -95,18 +95,28 @@ function pickImages({ camera = false, multiple = false } = {}) {
   });
 }
 
-async function toJpeg(file, maxSide, quality) {
+/**
+ * Convertit la photo en JPEG d'au plus `maxSide` pixels de côté. Avec `box`
+ * ([ymin, xmin, ymax, xmax] entre 0 et 1000), ne garde que ce cadre.
+ */
+async function toJpeg(file, maxSide, quality, box = null) {
   let bitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
     throw new Error("Format de photo non pris en charge.");
   }
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const { width, height } = bitmap;
+  const [ymin, xmin, ymax, xmax] = box ?? [0, 0, 1000, 1000];
+  const sx = Math.round((xmin / 1000) * width);
+  const sy = Math.round((ymin / 1000) * height);
+  const sw = Math.max(1, Math.round(((xmax - xmin) / 1000) * width));
+  const sh = Math.max(1, Math.round(((ymax - ymin) / 1000) * height));
+  const scale = Math.min(1, maxSide / Math.max(sw, sh));
   const canvas = h("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  canvas.width = Math.round(sw * scale);
+  canvas.height = Math.round(sh * scale);
+  canvas.getContext("2d").drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
   return new Promise((resolve, reject) =>
     canvas.toBlob(
@@ -117,8 +127,17 @@ async function toJpeg(file, maxSide, quality) {
   );
 }
 
-/** Version affichée (1600 px) + miniature du calendrier (400 px). */
-const photoVersions = (file) => Promise.all([toJpeg(file, 1600, 0.85), toJpeg(file, 400, 0.75)]);
+/** Version affichée (1600 px) + miniature du calendrier (400 px), éventuellement recadrées. */
+const photoVersions = (file, box = null) =>
+  Promise.all([toJpeg(file, 1600, 0.85, box), toJpeg(file, 400, 0.75, box)]);
+
+/** Élargit un peu le cadre trouvé par Gemini pour ne pas couper les bords de l'écran. */
+function padBox([ymin, xmin, ymax, xmax], margin = 0.06) {
+  const dy = (ymax - ymin) * margin;
+  const dx = (xmax - xmin) * margin;
+  const clamp = (v) => Math.min(1000, Math.max(0, v));
+  return [clamp(ymin - dy), clamp(xmin - dx), clamp(ymax + dy), clamp(xmax + dx)];
+}
 
 function toBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -839,7 +858,7 @@ function weighCard(day, row, urls) {
   // La photo et le poids s'enregistrent chacun de leur côté : la photo part dès qu'elle est prise,
   // pour ne pas la perdre si le téléphone recharge la page pendant la saisie.
   const photoPart = state.draft.busy.has("weigh-photo")
-    ? spinner("Envoi de la photo…")
+    ? spinner(state.draft.weighStatus ?? "Envoi de la photo…")
     : [
         photo,
         photoButtons((camera) => addWeighPhoto(day, camera), {
@@ -910,22 +929,42 @@ function weighCard(day, row, urls) {
   );
 }
 
+/**
+ * Photo de la balance : Gemini repère l'écran, le téléphone recadre la photo dessus
+ * (ni pieds ni sol), puis seule la version recadrée est enregistrée.
+ */
 async function addWeighPhoto(day, camera) {
   const [file] = await pickImages({ camera });
   if (!file) return;
-  state.draft.busy.add("weigh-photo");
-  renderDay();
+  const draft = state.draft;
+  const setStatus = (text) => {
+    draft.weighStatus = text;
+    renderDay();
+  };
+  draft.busy.add("weigh-photo");
+  setStatus("Recadrage sur l'écran de la balance…");
   try {
-    const [full, thumb] = await photoVersions(file);
+    let box = null;
+    let problem = "L'écran de la balance n'a pas été trouvé sur la photo.";
+    try {
+      box = await api.frameScale(await toBase64(await toJpeg(file, 1024, 0.8)));
+    } catch (err) {
+      problem = errorMessage(err);
+    }
+    if (!box && !confirm(`${problem}\n\nEnregistrer la photo entière quand même ?`)) return;
+
+    setStatus("Envoi de la photo…");
+    const [full, thumb] = await photoVersions(file, box && padBox(box));
     const old = rowFor(day);
     const paths = await api.uploadPhoto(day, "pesee", full, thumb);
     await saveFields(day, { weigh_path: paths.path, weigh_thumb: paths.thumb });
     api.removeFiles("pesee", [old?.weigh_path, old?.weigh_thumb]).catch(() => {});
-    toast("Photo de la balance enregistrée ✓");
+    toast(box ? "Photo recadrée sur l'écran et enregistrée ✓" : "Photo de la balance enregistrée ✓");
   } catch (err) {
     toast(errorMessage(err), "error");
   } finally {
-    state.draft.busy.delete("weigh-photo");
+    draft.busy.delete("weigh-photo");
+    draft.weighStatus = null;
     renderDay();
   }
 }

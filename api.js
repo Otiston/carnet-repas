@@ -125,22 +125,30 @@ export async function privatePhotoUrls(paths) {
   return new Map(wanted.filter((p) => signedCache.has(p)).map((p) => [p, signedCache.get(p).url]));
 }
 
-// --- Lecture de recette ----------------------------------------------------
+// --- Fonctions Gemini (lecture de recette, recadrage de la balance) ---------
 
-/** `images` : JPEG en base64 (sans préfixe data:). Renvoie { titre, portions, ingredients, etapes, note }. */
-export async function readRecipe(images) {
-  const { data, error } = await supabase.functions.invoke("lire-recette", {
-    body: { images },
-  });
+/** Appelle une Edge Function ; en cas d'échec, lève son message d'erreur en français. */
+async function invoke(name, body, fallbackMessage) {
+  const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
-    let message = "La lecture de la recette a échoué.";
+    let message = fallbackMessage;
     try {
-      const body = await error.context.json();
-      if (body?.error) message = body.error;
+      const json = await error.context.json();
+      if (json?.error) message = json.error;
     } catch {
       // pas de corps JSON : on garde le message générique
     }
     throw new Error(message);
   }
-  return data.recipe;
+  return data;
+}
+
+/** `images` : JPEG en base64 (sans préfixe data:). Renvoie { titre, portions, ingredients, etapes, note }. */
+export async function readRecipe(images) {
+  return (await invoke("lire-recette", { images }, "La lecture de la recette a échoué.")).recipe;
+}
+
+/** Où est l'écran de la balance sur la photo ? Renvoie [ymin, xmin, ymax, xmax] (0 à 1000) ou null. */
+export async function frameScale(image) {
+  return (await invoke("cadrer-balance", { images: [image] }, "Le recadrage de la photo a échoué.")).box;
 }

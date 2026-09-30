@@ -4,3 +4,6 @@ project_id = "carnet-repas"
 
 [functions.lire-recette]
 verify_jwt = true
+
+[functions.cadrer-balance]
+verify_jwt = true

@@ -291,7 +291,7 @@ Depuis l'appli sur le téléphone :
 
 1. **🍽️ Repas** : touche **📷 Prendre une photo**, prends n'importe quoi en photo et valide. Le message « Photo du repas enregistrée ✓ » s'affiche.
 2. **📖 Recette** : touche **📷 Photographier la recette**, prends une fiche recette en photo (ajoute le verso avec **Autre page** si besoin), puis **✨ Lire la recette**. Après 10 à 30 secondes, le formulaire se remplit : relis-le, puis **Enregistrer la recette**.
-3. **⚖️ Pesée** : ce bloc n'apparaît que le **mardi**. Pour tester un autre jour, touche la date sous le titre et choisis un mardi. Touche **📷 Photo de la balance** : la photo s'enregistre tout de suite (« Photo de la balance enregistrée ✓ »). Tape ensuite le poids (par exemple `72,4`), puis **Enregistrer le poids**.
+3. **⚖️ Pesée** : ce bloc n'apparaît que le **mardi**. Pour tester un autre jour, touche la date sous le titre et choisis un mardi. Touche **📷 Photo de la balance** : après quelques secondes (« Recadrage sur l'écran de la balance… »), la photo s'enregistre recadrée sur l'écran de la balance (« Photo recadrée sur l'écran et enregistrée ✓ »). Tape ensuite le poids (par exemple `72,4`), puis **Enregistrer le poids**.
 4. Sur le PC, recharge le **Calendrier** : la case du jour montre la photo, le titre de la recette, et le poids le mardi.
 
 ⚠️ **Si « Lire la recette » affiche une erreur**, lis le message :

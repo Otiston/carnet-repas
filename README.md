@@ -10,7 +10,7 @@ Mon suivi personnel, en un seul site :
 
 **Public en lecture, privé en écriture** : n'importe qui peut consulter le site, avec le calendrier, les photos des repas, les recettes et le poids des pesées. Les **photos de la balance** restent privées : elles sont rangées dans un stockage à part, que seul ton compte connecté peut lire. Seul toi, après **Se connecter**, peux ajouter, modifier ou supprimer. Le site n'est pas référencé par les moteurs de recherche : il faut en connaître l'adresse.
 
-**Coût : 0 €.** Supabase, GitHub (Pages et Actions) et l'offre gratuite de l'API Gemini ne demandent pas de carte bancaire. Sur l'offre gratuite, Google peut utiliser les photos de fiches recettes pour améliorer ses produits. Tes photos de repas et tes pesées ne lui sont jamais envoyées.
+**Coût : 0 €.** Supabase, GitHub (Pages et Actions) et l'offre gratuite de l'API Gemini ne demandent pas de carte bancaire. Gemini reçoit les photos de fiches recettes (pour les lire) et les photos de la balance (pour repérer l'écran et recadrer). Sur l'offre gratuite, Google peut utiliser ces contenus pour améliorer ses produits. Les photos de repas ne lui sont jamais envoyées.
 
 ## Comment ça marche
 
@@ -86,7 +86,7 @@ Changer une clé (par exemple une nouvelle clé Gemini) : mets à jour le secret
 - **Recette** : 📷 *Photographier la recette*. Si la liste d'ingrédients est sur l'autre face, ajoute-la avec *Autre page*, puis ✨ *Lire la recette*. Relis le résultat, corrige si besoin, puis *Enregistrer la recette*.
 - **Si Gemini ne répond pas** (quota atteint, modèle retiré…) : ↗️ *Envoyer à une app IA*. Le menu de partage du téléphone s'ouvre : choisis Claude, ChatGPT ou Gemini. La photo part avec la consigne, qui est aussi copiée au cas où l'app ne la reprendrait pas. Dans l'app, copie la réponse, reviens sur le site, 📋 *Coller*, puis *Remplir la recette*.
 - Tu peux aussi coller une réponse d'IA obtenue autrement (📋 *Coller une réponse d'IA*) ou écrire la recette à la main.
-- **Pesée (mardi)** : 📷 *Photo de la balance* (enregistrée tout de suite), puis tape le poids et *Enregistrer le poids*. L'ordre n'a pas d'importance.
+- **Pesée (mardi)** : 📷 *Photo de la balance*. Gemini repère l'écran de la balance et la photo est recadrée dessus (ni pieds ni sol) avant d'être enregistrée. Si l'écran n'est pas trouvé, l'appli propose de garder la photo entière. Tape ensuite le poids, puis *Enregistrer le poids*. L'ordre n'a pas d'importance.
 - Pour remplir un autre jour, change la date avec les flèches ‹ › ou le sélecteur de date.
 
 ## Tester sur le PC (facultatif)

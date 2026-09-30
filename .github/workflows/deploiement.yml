@@ -1,5 +1,5 @@
 # Déploiement automatique à chaque envoi (push) sur la branche main :
-#   1. Supabase : migrations de la base, clé Gemini, fonction « lire-recette »
+#   1. Supabase : migrations de la base, clé Gemini, fonctions « lire-recette » et « cadrer-balance »
 #   2. Site : publication sur GitHub Pages avec un numéro de version, que l'appli
 #      du téléphone détecte pour se mettre à jour toute seule.
 name: Déploiement
@@ -67,8 +67,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: supabase secrets set --project-ref "$PROJECT_REF" GEMINI_API_KEY="$GEMINI_API_KEY"
 
-      - name: Déployer la fonction lire-recette
-        run: supabase functions deploy lire-recette --project-ref "$PROJECT_REF"
+      - name: Déployer les fonctions (lire-recette, cadrer-balance)
+        run: supabase functions deploy --project-ref "$PROJECT_REF"
 
   site:
     name: Site web
