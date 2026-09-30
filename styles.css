@@ -488,15 +488,11 @@ textarea {
   font-weight: 700;
   color: var(--accent);
 }
-.note,
 .hint {
   background: var(--accent-soft);
   border-radius: 10px;
   padding: 0.6rem 0.8rem;
-  margin: 0.9rem 0 0;
   font-size: 0.92rem;
-}
-.hint {
   margin: 0 0 0.25rem;
 }
 

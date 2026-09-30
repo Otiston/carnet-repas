@@ -16,7 +16,6 @@ INGRÉDIENTS :
 - quantité ingrédient
 ÉTAPES :
 1. étape courte
-NOTE : astuce utile (vide si aucune)
 
 === ENGLISH ===
 TITLE: dish name
@@ -25,9 +24,8 @@ INGREDIENTS:
 - quantity ingredient
 STEPS:
 1. short step
-NOTE: useful tip (empty if none)
 
-Liste tous les ingrédients, y compris ceux cités seulement dans les étapes (beurre, huile, sel, poivre, sucre, eau…), sans inventer de quantité illisible. Retire les titres décoratifs mais garde les durées, feux, tailles de découpe et mentions « par personne ». En anglais, écris « tsp » pour « cc » et « tbsp » pour « cs ».`;
+Liste tous les ingrédients, y compris ceux cités seulement dans les étapes (beurre, huile, sel, poivre, sucre, eau…), sans inventer de quantité illisible. Retire les titres décoratifs et l'astuce du chef (aucune note ni astuce), mais garde les durées, feux, tailles de découpe et mentions « par personne ». En anglais, écris « tsp » pour « cc » et « tbsp » pour « cs ».`;
 
 /** Crée un élément DOM ; les enfants texte sont insérés comme texte (jamais comme HTML). */
 function h(tag, props, ...children) {
@@ -471,7 +469,8 @@ async function deleteFood(day) {
 // Recette -------------------------------------------------------------------
 //
 // Une recette est enregistrée en français, avec sa traduction anglaise dans `en` :
-// { titre, portions, ingredients[], etapes[], note, en: { title, servings, ingredients[], steps[], note } }
+// { titre, portions, ingredients[], etapes[], en: { title, servings, ingredients[], steps[] } }
+// (les recettes plus anciennes peuvent avoir un champ `note`, qui n'est plus affiché)
 
 const RECIPE_LABELS = {
   fr: { ingredients: "Ingrédients", steps: "Étapes", untitled: "Recette sans titre" },
@@ -482,8 +481,8 @@ const RECIPE_LABELS = {
 function recipeIn(r, lang) {
   const v =
     lang === "en"
-      ? { title: r?.en?.title, servings: r?.en?.servings, ingredients: r?.en?.ingredients ?? [], steps: r?.en?.steps ?? [], note: r?.en?.note }
-      : { title: r?.titre, servings: r?.portions, ingredients: r?.ingredients ?? [], steps: r?.etapes ?? [], note: r?.note };
+      ? { title: r?.en?.title, servings: r?.en?.servings, ingredients: r?.en?.ingredients ?? [], steps: r?.en?.steps ?? [] }
+      : { title: r?.titre, servings: r?.portions, ingredients: r?.ingredients ?? [], steps: r?.etapes ?? [] };
   return v.title || v.ingredients.length || v.steps.length ? v : null;
 }
 
@@ -553,7 +552,6 @@ function recipeDetails(r) {
           : h("p", { class: "muted small" }, "—"),
       ),
     ),
-    v.note && h("p", { class: "note", lang }, "💡 ", v.note),
   ];
 }
 
@@ -595,7 +593,7 @@ function recipeCard(day, row) {
         ? h(
             "p",
             { class: "hint" },
-            `Gemini n'est pas disponible : ${draft.aiFailed} Envoie plutôt la photo à ChatGPT (ou Claude) avec ↗️, puis colle sa réponse : la recette se remplira toute seule, en français et en anglais.`,
+            `${draft.aiFailed} Envoie plutôt la photo à ChatGPT (ou Claude) avec ↗️, puis colle sa réponse : la recette se remplira toute seule, en français et en anglais.`,
           )
         : h("p", { class: "muted small" }, "Ajoute le recto et le verso si la liste d'ingrédients est sur une autre face."),
       pageStrip(true),
@@ -708,6 +706,9 @@ async function readRecipe(day) {
     const images = await Promise.all(draft.pages.map((p) => toBase64(p.blob)));
     const recipe = await api.readRecipe(images);
     if (state.draft.recipe !== draft) return; // annulé ou autre jour entre-temps
+    if (!recipeIn(recipe, "fr") && !recipeIn(recipe, "en")) {
+      throw new Error("Gemini n'a reconnu aucune recette sur la photo.");
+    }
     draft.form = recipeToForm(recipe);
     draft.fromAI = true;
     draft.mode = "edit";
@@ -835,9 +836,10 @@ function sectionOf(word, currentLang) {
   if (w.startsWith("etape") || w.startsWith("preparation")) return ["fr", "steps"];
   if (w.startsWith("step") || w === "method" || w === "directions") return ["en", "steps"];
   if (w.startsWith("instruction")) return [currentLang, "steps"];
-  if (w.startsWith("astuce")) return ["fr", "note"];
-  if (w.startsWith("tip")) return ["en", "note"];
-  return [currentLang, "note"];
+  // Notes, astuces du chef, tips : rubrique écartée (plus affichée ni enregistrée).
+  if (w.startsWith("astuce")) return ["fr", "ignored"];
+  if (w.startsWith("tip")) return ["en", "ignored"];
+  return [currentLang, "ignored"];
 }
 
 /**
@@ -847,7 +849,7 @@ function sectionOf(word, currentLang) {
  * puces = ingrédients, lignes numérotées = étapes (en français).
  */
 function parseRecipeText(text) {
-  const empty = () => ({ title: [], servings: [], ingredients: [], steps: [], note: [] });
+  const empty = () => ({ title: [], servings: [], ingredients: [], steps: [], ignored: [] });
   const sections = { fr: empty(), en: empty() };
   const loose = [];
   let lang = "fr";
@@ -887,7 +889,7 @@ function parseRecipeText(text) {
       if (/^[-•*–]\s+/.test(line)) t.ingredients.push(line);
       else if (/^(?:\d+[.)]|\d\uFE0F?\u20E3)\s*/.test(line)) t.steps.push(line);
       else if (!t.title.length) t.title.push(line);
-      else t.note.push(line);
+      else t.ignored.push(line);
     }
     const hasList = (t) => t.ingredients.length || t.steps.length;
     if (!hasList(sections.fr) && !hasList(sections.en)) return null;
@@ -897,13 +899,12 @@ function parseRecipeText(text) {
     servings: s.servings.join(" "),
     ingredients: lines(s.ingredients.join("\n")),
     steps: lines(s.steps.join("\n")),
-    note: s.note.join(" "),
   });
   const fr = finish(sections.fr);
   const en = finish(sections.en);
   const filled = (v) => v.title || v.ingredients.length || v.steps.length;
   if (!filled(fr) && !filled(en)) return null;
-  const recipe = { titre: fr.title, portions: fr.servings, ingredients: fr.ingredients, etapes: fr.steps, note: fr.note };
+  const recipe = { titre: fr.title, portions: fr.servings, ingredients: fr.ingredients, etapes: fr.steps };
   if (filled(en)) recipe.en = en;
   return recipe;
 }
@@ -913,12 +914,10 @@ const recipeToForm = (r) => ({
   portions: r?.portions ?? "",
   ingredients: (r?.ingredients ?? []).join("\n"),
   etapes: (r?.etapes ?? []).join("\n"),
-  note: r?.note ?? "",
   en_title: r?.en?.title ?? "",
   en_servings: r?.en?.servings ?? "",
   en_ingredients: (r?.en?.ingredients ?? []).join("\n"),
   en_steps: (r?.en?.steps ?? []).join("\n"),
-  en_note: r?.en?.note ?? "",
 });
 
 function formToRecipe(f) {
@@ -927,14 +926,12 @@ function formToRecipe(f) {
     portions: f.portions.trim(),
     ingredients: lines(f.ingredients),
     etapes: lines(f.etapes),
-    note: f.note.trim(),
   };
   const en = {
     title: f.en_title.trim(),
     servings: f.en_servings.trim(),
     ingredients: lines(f.en_ingredients),
     steps: lines(f.en_steps),
-    note: f.en_note.trim(),
   };
   if (en.title || en.ingredients.length || en.steps.length) recipe.en = en;
   return recipe;
@@ -967,7 +964,7 @@ function recipeForm(day) {
         ? h("textarea", { name, rows: props.rows, value: form[name], placeholder: props.placeholder })
         : h("input", { name, value: form[name], placeholder: props.placeholder }),
     );
-  // Un bloc par langue : titre et portions, puis ingrédients | étapes côte à côte, puis note.
+  // Un bloc par langue : titre et portions, puis ingrédients | étapes côte à côte.
   const block = (legend, lang, names, labels) =>
     h(
       "fieldset",
@@ -975,7 +972,6 @@ function recipeForm(day) {
       h("legend", {}, legend),
       h("div", { class: "form-row" }, field(names[0], labels[0]), field(names[1], labels[1])),
       h("div", { class: "recipe-columns" }, field(names[2], labels[2], { rows: 10 }), field(names[3], labels[3], { rows: 10 })),
-      field(names[4], labels[4], { rows: 2 }),
     );
 
   return h(
@@ -992,14 +988,14 @@ function recipeForm(day) {
     block(
       "🇫🇷 Français",
       "fr",
-      ["titre", "portions", "ingredients", "etapes", "note"],
-      ["Titre", "Portions", "Ingrédients (un par ligne)", "Étapes (une par ligne)", "Note"],
+      ["titre", "portions", "ingredients", "etapes"],
+      ["Titre", "Portions", "Ingrédients (un par ligne)", "Étapes (une par ligne)"],
     ),
     block(
       "🇬🇧 English",
       "en",
-      ["en_title", "en_servings", "en_ingredients", "en_steps", "en_note"],
-      ["Title", "Servings", "Ingredients (one per line)", "Steps (one per line)", "Note"],
+      ["en_title", "en_servings", "en_ingredients", "en_steps"],
+      ["Title", "Servings", "Ingredients (one per line)", "Steps (one per line)"],
     ),
     h(
       "div",
