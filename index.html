@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Carnet repas</title>
+    <meta name="description" content="Mon suivi personnel : repas, recettes et pesées." />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#f6f1e8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171513" media="(prefers-color-scheme: dark)" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Carnet repas" />
+    <link rel="stylesheet" href="styles.css?v=__VERSION__" />
+    <script type="module" src="app.js?v=__VERSION__"></script>
+  </head>
+  <body>
+    <main id="login" hidden>
+      <form id="login-form" class="login-card">
+        <img src="icons/icon-192.png" alt="" width="64" height="64" />
+        <h1>Carnet repas</h1>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>Mot de passe</span>
+          <input type="password" name="password" autocomplete="current-password" required />
+        </label>
+        <button class="primary big" type="submit">Se connecter</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </main>
+
+    <div id="shell" hidden>
+      <header class="topbar">
+        <nav class="tabs" aria-label="Vues">
+          <button data-view="jour">Jour</button>
+          <button data-view="calendrier">Calendrier</button>
+        </nav>
+        <button id="logout" class="ghost small">Déconnexion</button>
+      </header>
+
+      <section id="view-jour" class="view" hidden>
+        <div class="day-nav">
+          <button id="prev-day" class="icon" aria-label="Jour précédent">‹</button>
+          <div class="day-heading">
+            <h2 id="day-title"></h2>
+            <div class="day-sub">
+              <span id="day-subtitle" class="muted small"></span>
+              <input type="date" id="day-picker" aria-label="Choisir une date" />
+            </div>
+          </div>
+          <button id="next-day" class="icon" aria-label="Jour suivant">›</button>
+        </div>
+        <div id="day-body"></div>
+      </section>
+
+      <section id="view-calendrier" class="view" hidden>
+        <div class="month-nav">
+          <button id="prev-month" class="icon" aria-label="Mois précédent">‹</button>
+          <h2 id="month-title"></h2>
+          <button id="next-month" class="icon" aria-label="Mois suivant">›</button>
+          <button id="this-month" class="ghost small">Aujourd'hui</button>
+        </div>
+        <div class="weekdays" aria-hidden="true">
+          <span>Lun</span><span class="tue">Mar ⚖️</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span>
+        </div>
+        <div id="grid" class="grid"></div>
+      </section>
+
+      <footer id="version" class="muted small center"></footer>
+    </div>
+
+    <div id="update-banner" role="status" hidden>
+      <span>Nouvelle version disponible</span>
+      <button id="update-now" class="primary small">Mettre à jour</button>
+    </div>
+
+    <div id="lightbox" hidden><img alt="" /></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+# Configuration minimale du CLI Supabase, utilisée par le déploiement automatique
+# (.github/workflows/deploiement.yml).
+project_id = "carnet-repas"
+
+[functions.lire-recette]
+verify_jwt = true

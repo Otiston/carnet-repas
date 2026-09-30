@@ -1,0 +1,6 @@
+# Fichiers créés par le CLI Supabase en local
+supabase/.temp/
+supabase/.branches/
+
+# Construction locale du site
+_site/

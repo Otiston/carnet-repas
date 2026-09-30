@@ -1,0 +1,106 @@
+# Déploiement automatique à chaque envoi (push) sur la branche main :
+#   1. Supabase : migrations de la base, clé Gemini, fonction « lire-recette »
+#   2. Site : publication sur GitHub Pages avec un numéro de version, que l'appli
+#      du téléphone détecte pour se mettre à jour toute seule.
+name: Déploiement
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploiement
+  cancel-in-progress: false
+
+jobs:
+  supabase:
+    name: Base de données et fonction
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Vérifier les secrets
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          missing=0
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF SUPABASE_PUBLISHABLE_KEY GEMINI_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret manquant : $name (GitHub > Settings > Secrets and variables > Actions)"
+              missing=1
+            fi
+          done
+          # Accepte l'identifiant seul ou l'URL complète du projet.
+          ref="${SUPABASE_PROJECT_REF#https://}"
+          echo "PROJECT_REF=${ref%%.supabase.co*}" >> "$GITHUB_ENV"
+          exit $missing
+
+      - uses: actions/checkout@v7
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      - name: Relier le projet Supabase
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Appliquer les migrations de la base
+        run: supabase db push
+
+      - name: Enregistrer la clé Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: supabase secrets set --project-ref "$PROJECT_REF" GEMINI_API_KEY="$GEMINI_API_KEY"
+
+      - name: Déployer la fonction lire-recette
+        run: supabase functions deploy lire-recette --project-ref "$PROJECT_REF"
+
+  site:
+    name: Site web
+    needs: supabase
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Préparer le site
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          ref="${SUPABASE_PROJECT_REF#https://}"
+          ref="${ref%%.supabase.co*}"
+          version="${GITHUB_SHA::7}"
+          build_date="$(TZ=Europe/Paris date +%d/%m/%Y)"
+
+          mkdir _site
+          cp index.html app.js api.js styles.css manifest.webmanifest _site/
+          cp -r icons _site/
+          # Numéro de version dans les liens des fichiers : le téléphone ne peut pas garder
+          # un mélange d'ancienne et de nouvelle version en cache.
+          sed -i "s/__VERSION__/$version/g; s#__BUILD_DATE__#$build_date#g" \
+            _site/index.html _site/app.js _site/api.js
+          cat > _site/config.js <<EOF
+          export const SUPABASE_URL = "https://$ref.supabase.co";
+          export const SUPABASE_KEY = "$SUPABASE_PUBLISHABLE_KEY";
+          EOF
+          echo "{\"version\":\"$version\",\"date\":\"$build_date\"}" > _site/version.json
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
