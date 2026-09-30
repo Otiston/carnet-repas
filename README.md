@@ -32,6 +32,7 @@ Supabase (gratuit)
 
 | Fichier | Rôle |
 |---|---|
+| `GUIDE.md` | Le guide d'installation pas à pas |
 | `index.html`, `styles.css`, `app.js` | Le site (interface calendrier + jour, mises à jour) |
 | `api.js` | Tous les échanges avec Supabase |
 | `config.js` | Seulement pour tester en local : en ligne, il est généré depuis les secrets GitHub |
@@ -42,96 +43,17 @@ Supabase (gratuit)
 
 ---
 
-## Mise en place guidée (une seule fois, environ 30 minutes)
+## Mise en place
 
-Au fil des étapes, tu vas récupérer **5 valeurs**, à ranger au même endroit dans GitHub (étape 5). Garde un bloc-notes ouvert pour les noter au fur et à mesure :
+👉 **Suis le guide pas à pas : [GUIDE.md](GUIDE.md)** (environ 45 minutes, une seule fois).
 
-| Nom du secret | Où le trouver | Étape |
-|---|---|---|
-| `SUPABASE_PROJECT_REF` | Identifiant du projet Supabase | 1 |
-| `SUPABASE_DB_PASSWORD` | Mot de passe de la base, choisi à la création | 1 |
-| `SUPABASE_PUBLISHABLE_KEY` | Clé publique `sb_publishable_…` | 1 |
-| `SUPABASE_ACCESS_TOKEN` | Jeton d'accès `sbp_…` | 2 |
-| `GEMINI_API_KEY` | Clé Gemini gratuite | 3 |
+En résumé :
 
-### Étape 1 · Créer le projet Supabase
-
-1. Va sur <https://supabase.com>, clique **Start your project** et crée un compte (avec GitHub, c'est le plus simple).
-2. Clique **New project** :
-   - **Name** : `carnet-repas`
-   - **Database Password** : clique **Generate a password**, puis **copie-le tout de suite** → c'est `SUPABASE_DB_PASSWORD`.
-   - **Region** : une région en Europe (par exemple Paris ou Frankfurt).
-   - Clique **Create new project** et attends 1 à 2 minutes.
-3. Récupère l'identifiant du projet. Dans l'adresse du navigateur `https://supabase.com/dashboard/project/abcdefghijklmnop`, c'est la suite de lettres après `project/` → `SUPABASE_PROJECT_REF`.
-4. Récupère la clé publique : **Project Settings** (roue dentée en bas à gauche) → **API Keys** → copie la **Publishable key** (`sb_publishable_…`) → `SUPABASE_PUBLISHABLE_KEY`.
-
-Tu n'as rien à coller dans l'éditeur SQL : la base sera créée automatiquement au premier déploiement.
-
-### Étape 2 · Jeton d'accès Supabase
-
-Ce jeton permet à GitHub de mettre à jour ton projet Supabase à chaque nouvelle version.
-
-1. Va sur <https://supabase.com/dashboard/account/tokens>.
-2. **Generate new token**, nom `github-carnet-repas`, puis **Generate token**.
-3. Copie-le (`sbp_…`) → `SUPABASE_ACCESS_TOKEN`. Il ne sera plus affiché ensuite.
-
-### Étape 3 · Clé Gemini gratuite
-
-1. Va sur <https://aistudio.google.com> et connecte-toi avec ton compte Google.
-2. **Get API key** → **Create API key**, puis copie la clé → `GEMINI_API_KEY`.
-3. **N'active pas la facturation (« billing »)** : sans elle, tu restes sur l'offre gratuite et rien ne peut t'être facturé.
-
-### Étape 4 · Créer le dépôt GitHub
-
-1. Va sur <https://github.com/new>.
-2. **Repository name** : `carnet-repas`. Choisis **Public** (nécessaire pour GitHub Pages gratuit). Ne coche rien d'autre, puis **Create repository**.
-
-Aucune donnée personnelle n'est dans le code : les photos et recettes restent dans Supabase, protégées par ta connexion, et les clés sont dans les secrets GitHub, jamais visibles.
-
-### Étape 5 · Ranger les 5 secrets dans GitHub
-
-Dans ton dépôt : **Settings** → **Secrets and variables** → **Actions** → **New repository secret**. Recommence pour chacun des 5 secrets du tableau ci-dessus :
-
-- **Name** : le nom exact (par exemple `GEMINI_API_KEY`) ;
-- **Secret** : la valeur copiée ;
-- puis **Add secret**.
-
-À la fin, la liste **Repository secrets** doit montrer les 5 noms.
-
-### Étape 6 · Activer GitHub Pages
-
-Dans ton dépôt : **Settings** → **Pages** → **Build and deployment** → **Source** : choisis **GitHub Actions**. Il n'y a rien d'autre à enregistrer.
-
-### Étape 7 · Envoyer le code
-
-Le dépôt local est déjà prêt, avec un premier commit. Depuis ce dossier :
-
-```bash
-git remote add origin https://github.com/TON-PSEUDO/carnet-repas.git
-```
-
-```bash
-git push -u origin main
-```
-
-Ensuite, dans l'onglet **Actions** du dépôt, le déploiement « Déploiement » démarre. Au bout de 2 à 3 minutes, les deux étapes doivent être vertes ✅. L'adresse du site s'affiche sous l'étape **Site web** : `https://TON-PSEUDO.github.io/carnet-repas/`.
-
-Si une étape est rouge ❌, clique dessus. L'étape « Vérifier les secrets » indique précisément quel secret manque. Corrige-le, puis **Re-run all jobs**.
-
-### Étape 8 · Créer ton compte et fermer les inscriptions
-
-Dans Supabase :
-
-1. **Authentication** → **Users** → **Add user** → **Create new user** : ton email et un mot de passe, et coche **Auto Confirm User**.
-2. **Authentication** → **Sign In / Providers** : désactive **Allow new users to sign up**.
-   C'est important : sinon, n'importe qui pourrait se créer un compte sur ton site et consommer ton quota Gemini gratuit.
-
-### Étape 9 · Installer l'application sur le téléphone
-
-- **Android (Chrome)** : ouvre l'adresse du site, connecte-toi, puis menu **⋮** → **Ajouter à l'écran d'accueil** (ou **Installer l'application**).
-- **iPhone (Safari)** : ouvre l'adresse, connecte-toi, puis **Partager** → **Sur l'écran d'accueil**.
-
-L'icône ouvre directement la journée du jour. Tu restes connecté.
+1. **Supabase** : créer le projet, noter son identifiant, son mot de passe de base et sa clé publique, puis créer un jeton d'accès.
+2. **Gemini** : créer une clé gratuite sur Google AI Studio, sans activer la facturation.
+3. **GitHub** : créer le dépôt `carnet-repas`, y ranger les 5 secrets, régler Pages sur **GitHub Actions**, puis faire `git push`.
+4. **Supabase** : créer ton utilisateur et fermer les inscriptions.
+5. **Téléphone** : ouvrir le site, puis « Ajouter à l'écran d'accueil ».
 
 ---
 
