@@ -410,6 +410,60 @@ function openLightbox(src, round = false) {
 
 const closeLightbox = () => ($("#lightbox").hidden = true);
 
+/**
+ * Visionneuse : un clic sur la photo l'agrandit ; agrandie, on la déplace en maintenant le clic gauche
+ * et un clic droit la réduit (sur téléphone, toucher à nouveau la réduit). Le fond ou × ferme.
+ */
+function wireLightbox() {
+  const box = $("#lightbox");
+  const isZoomed = () => box.classList.contains("zoomed");
+  let drag = null; // { x, y, moved } pendant un glisser à la souris
+  let lastPointer = "mouse";
+  let justDragged = false;
+
+  box.addEventListener("pointerdown", (e) => {
+    lastPointer = e.pointerType;
+    if (e.pointerType !== "mouse" || e.button !== 0 || !isZoomed() || e.target.tagName === "BUTTON") return;
+    drag = { x: e.clientX, y: e.clientY, moved: false };
+    box.setPointerCapture(e.pointerId);
+    box.classList.add("dragging");
+  });
+  box.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    box.scrollLeft -= dx;
+    box.scrollTop -= dy;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+  });
+  const endDrag = () => {
+    box.classList.remove("dragging");
+    // Le clic qui suit un glisser ne doit ni réduire la photo ni fermer la visionneuse.
+    if (drag?.moved) {
+      justDragged = true;
+      setTimeout(() => (justDragged = false));
+    }
+    drag = null;
+  };
+  box.addEventListener("pointerup", endDrag);
+  box.addEventListener("pointercancel", endDrag);
+
+  box.addEventListener("click", (e) => {
+    if (justDragged) return;
+    if (e.target.tagName !== "IMG") closeLightbox();
+    else if (!isZoomed()) zoomLightbox(true, e);
+    else if (lastPointer !== "mouse") zoomLightbox(false);
+  });
+  box.addEventListener("contextmenu", (e) => {
+    if (!isZoomed()) return;
+    e.preventDefault();
+    zoomLightbox(false);
+  });
+  box.addEventListener("dragstart", (e) => e.preventDefault());
+}
+
 /** Photo à l'écran (ajustée) ou agrandie (défilable), en gardant sous le curseur le point cliqué. */
 function zoomLightbox(zoomed, event) {
   const box = $("#lightbox");
@@ -1417,11 +1471,7 @@ function wireStaticControls() {
   $("#next-day").addEventListener("click", () => goDay(addDays(state.day, 1)));
   $("#day-picker").addEventListener("change", (e) => e.target.value && goDay(e.target.value));
 
-  // Toucher la photo l'agrandit (puis la réduit) ; toucher le fond ou × ferme la visionneuse.
-  $("#lightbox").addEventListener("click", (e) => {
-    if (e.target.tagName === "IMG") zoomLightbox(!$("#lightbox").classList.contains("zoomed"), e);
-    else closeLightbox();
-  });
+  wireLightbox();
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeLightbox();

@@ -936,7 +936,12 @@ body:has(#lightbox:not([hidden])) {
   max-width: none;
   max-height: none;
   height: auto;
-  cursor: zoom-out;
+  cursor: grab;
+  user-select: none;
+}
+#lightbox.dragging,
+#lightbox.dragging img {
+  cursor: grabbing;
 }
 #lightbox-close {
   position: fixed;
