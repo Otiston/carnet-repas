@@ -401,9 +401,34 @@ function photoButtons(onPick, { cameraLabel = "Prendre une photo", galleryLabel 
 const spinner = (text) => h("p", { class: "busy" }, h("span", { class: "spin", "aria-hidden": "true" }), text);
 
 function openLightbox(src, round = false) {
-  $("#lightbox img").src = src;
-  $("#lightbox img").classList.toggle("round", round);
+  const img = $("#lightbox img");
+  img.src = src;
+  img.classList.toggle("round", round);
+  zoomLightbox(false);
   $("#lightbox").hidden = false;
+}
+
+const closeLightbox = () => ($("#lightbox").hidden = true);
+
+/** Photo à l'écran (ajustée) ou agrandie (défilable), en gardant sous le curseur le point cliqué. */
+function zoomLightbox(zoomed, event) {
+  const box = $("#lightbox");
+  const img = $("#lightbox img");
+  if (!zoomed) {
+    box.classList.remove("zoomed");
+    img.style.width = "";
+    return;
+  }
+  const rect = img.getBoundingClientRect();
+  const fx = event ? (event.clientX - rect.left) / rect.width : 0.5;
+  const fy = event ? (event.clientY - rect.top) / rect.height : 0.5;
+  // Taille réelle de la photo, et au moins 2,5 fois la taille affichée.
+  const width = Math.max(img.naturalWidth, rect.width * 2.5);
+  box.classList.add("zoomed");
+  img.style.width = `${Math.round(width)}px`;
+  const zoomedRect = img.getBoundingClientRect();
+  box.scrollLeft += zoomedRect.left + fx * zoomedRect.width - (event?.clientX ?? box.clientWidth / 2);
+  box.scrollTop += zoomedRect.top + fy * zoomedRect.height - (event?.clientY ?? box.clientHeight / 2);
 }
 
 // Repas ---------------------------------------------------------------------
@@ -1392,10 +1417,14 @@ function wireStaticControls() {
   $("#next-day").addEventListener("click", () => goDay(addDays(state.day, 1)));
   $("#day-picker").addEventListener("change", (e) => e.target.value && goDay(e.target.value));
 
-  $("#lightbox").addEventListener("click", () => ($("#lightbox").hidden = true));
+  // Toucher la photo l'agrandit (puis la réduit) ; toucher le fond ou × ferme la visionneuse.
+  $("#lightbox").addEventListener("click", (e) => {
+    if (e.target.tagName === "IMG") zoomLightbox(!$("#lightbox").classList.contains("zoomed"), e);
+    else closeLightbox();
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      $("#lightbox").hidden = true;
+      closeLightbox();
       $("#login").hidden = true;
     }
   });

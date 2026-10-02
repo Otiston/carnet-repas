@@ -915,15 +915,36 @@ textarea {
   inset: 0;
   z-index: 20;
   background: rgb(0 0 0 / 0.88);
-  display: grid;
-  place-items: center;
+  display: flex;
   padding: 16px;
-  cursor: zoom-out;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+/* La page derrière ne défile pas pendant que la visionneuse est ouverte. */
+body:has(#lightbox:not([hidden])) {
+  overflow: hidden;
 }
 #lightbox img {
+  /* margin auto centre la photo sans couper ses bords une fois agrandie. */
+  margin: auto;
   max-width: 100%;
   max-height: 100%;
   border-radius: 8px;
+  cursor: zoom-in;
+}
+#lightbox.zoomed img {
+  max-width: none;
+  max-height: none;
+  height: auto;
+  cursor: zoom-out;
+}
+#lightbox-close {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: 12px;
+  background: rgb(0 0 0 / 0.55);
+  border-color: rgb(255 255 255 / 0.3);
+  color: #fff;
 }
 
 #toast {
