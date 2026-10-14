@@ -65,12 +65,19 @@ const formatWeight = (n) =>
 const formatKg = (n) => `${formatWeight(n)} kg`;
 
 let toastTimer;
-function toast(message, kind = "ok") {
+/** Message en bas de l'écran ; avec `action` ({ label, onclick, ms }), suivi d'un bouton (ex. « Annuler »). */
+function toast(message, kind = "ok", action = null) {
   const el = $("#toast");
-  el.textContent = message;
+  const hide = () => (el.className = "");
+  const onAction = () => {
+    hide();
+    action.onclick();
+  };
+  el.replaceChildren(message);
+  if (action) el.append(h("button", { onclick: onAction }, action.label));
   el.className = `show ${kind}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.className = ""), kind === "error" ? 6000 : 2800);
+  toastTimer = setTimeout(hide, action?.ms ?? (kind === "error" ? 6000 : 2800));
 }
 
 function errorMessage(err) {
@@ -485,6 +492,97 @@ function zoomLightbox(zoomed, event) {
   box.scrollTop += zoomedRect.top + fy * zoomedRect.height - (event?.clientY ?? box.clientHeight / 2);
 }
 
+// Remplacement de photo annulable --------------------------------------------
+//
+// Supabase Storage n'a ni corbeille ni versions : quand une photo (repas ou balance) est
+// remplacée, l'ancienne reste en place UNDO_MS, le temps de pouvoir annuler, puis elle est
+// supprimée (tout de suite si une autre photo est remplacée ou supprimée entre-temps).
+// La suppression en attente est notée dans le navigateur : si la page est fermée avant
+// la fin du délai, elle se fait à la prochaine ouverture.
+
+const UNDO_MS = 10000;
+const PHOTO_FIELDS = { repas: ["food_path", "food_thumb"], pesee: ["weigh_path", "weigh_thumb"] };
+const REMOVALS_KEY = "pending-photo-removals";
+let pendingSwap = null; // { day, kind, old: [photo, miniature], fresh: [photo, miniature], timer }
+
+/** Suppressions en attente : [{ day, kind, old: [photo, miniature], until }]. */
+function storedRemovals() {
+  try {
+    return JSON.parse(localStorage.getItem(REMOVALS_KEY)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function storeRemovals(list) {
+  try {
+    if (list.length) localStorage.setItem(REMOVALS_KEY, JSON.stringify(list));
+    else localStorage.removeItem(REMOVALS_KEY);
+  } catch {
+    // stockage indisponible : l'ancienne photo restera si la page est fermée pendant le délai
+  }
+}
+
+const otherRemovals = (old) => storedRemovals().filter((r) => r.old[0] !== old[0]);
+
+/** Garde l'ancienne photo UNDO_MS et propose de la remettre (« Annuler », ou « Réessayer » après un échec). */
+function offerUndo(swap, message, failed = false) {
+  finishSwap(); // une seule annulation possible à la fois
+  pendingSwap = swap;
+  swap.timer = setTimeout(() => finishSwap(swap), UNDO_MS);
+  const { day, kind, old } = swap;
+  storeRemovals([...otherRemovals(old), { day, kind, old, until: Date.now() + UNDO_MS }]);
+  toast(message, failed ? "error" : "ok", {
+    label: failed ? "Réessayer" : "Annuler",
+    onclick: () => undoSwap(swap),
+    ms: UNDO_MS,
+  });
+}
+
+/** « Annuler » : la journée reprend l'ancienne photo, et la nouvelle est supprimée. */
+async function undoSwap(swap) {
+  if (pendingSwap !== swap) return; // trop tard : l'ancienne photo est déjà supprimée
+  clearTimeout(swap.timer);
+  pendingSwap = null;
+  const [pathKey, thumbKey] = PHOTO_FIELDS[swap.kind];
+  try {
+    await saveFields(swap.day, { [pathKey]: swap.old[0], [thumbKey]: swap.old[1] });
+    storeRemovals(otherRemovals(swap.old));
+    api.removeFiles(swap.kind, swap.fresh).catch(() => {});
+    toast("Ancienne photo remise ✓");
+  } catch (err) {
+    offerUndo(swap, errorMessage(err), true);
+  }
+  renderDay();
+}
+
+/** Supprime pour de bon l'ancienne photo en attente (délai passé, autre remplacement, déconnexion…). */
+async function finishSwap(swap = pendingSwap) {
+  if (!swap || pendingSwap !== swap) return;
+  clearTimeout(swap.timer);
+  pendingSwap = null;
+  if ($("#toast.show button")) $("#toast").className = ""; // son « Annuler » ne ferait plus rien
+  // En cas d'échec (hors ligne…), elle reste notée et sera supprimée à la prochaine ouverture.
+  if (await api.removeFiles(swap.kind, swap.old).catch(() => false)) storeRemovals(otherRemovals(swap.old));
+}
+
+/**
+ * Au démarrage : supprime les anciennes photos dont le délai est passé sans que la suppression
+ * ait eu lieu (page fermée entre-temps), sauf si la journée l'affiche encore (par sécurité).
+ */
+async function finishStoredRemovals() {
+  for (const removal of storedRemovals()) {
+    if (removal.until > Date.now()) continue; // annulation peut-être encore possible dans un autre onglet
+    try {
+      const row = (await api.loadDays(removal.day, removal.day)).get(removal.day);
+      const shown = PHOTO_FIELDS[removal.kind].some((key) => row?.[key] && removal.old.includes(row[key]));
+      if (shown || (await api.removeFiles(removal.kind, removal.old))) storeRemovals(otherRemovals(removal.old));
+    } catch {
+      return; // hors ligne : on réessaiera à la prochaine ouverture
+    }
+  }
+}
+
 // Repas ---------------------------------------------------------------------
 
 function foodCard(day, row, urls) {
@@ -514,6 +612,7 @@ function foodCard(day, row, urls) {
 async function addFood(day, camera) {
   const [file] = await pickImages({ camera });
   if (!file) return;
+  finishSwap();
   state.draft.busy.add("food");
   renderDay();
   try {
@@ -521,8 +620,12 @@ async function addFood(day, camera) {
     const old = rowFor(day);
     const paths = await api.uploadPhoto(day, "repas", full, thumb);
     await saveFields(day, { food_path: paths.path, food_thumb: paths.thumb });
-    api.removeFiles("repas", [old?.food_path, old?.food_thumb]).catch(() => {});
-    toast(`Photo du repas enregistrée (${shortDate(day)}) ✓`);
+    if (old?.food_path) {
+      const swap = { day, kind: "repas", old: [old.food_path, old.food_thumb], fresh: [paths.path, paths.thumb] };
+      offerUndo(swap, "Photo remplacée");
+    } else {
+      toast(`Photo du repas enregistrée (${shortDate(day)}) ✓`);
+    }
   } catch (err) {
     toast(errorMessage(err), "error");
   } finally {
@@ -533,6 +636,7 @@ async function addFood(day, camera) {
 
 async function deleteFood(day) {
   if (!confirm("Supprimer la photo du repas ?")) return;
+  finishSwap();
   const old = rowFor(day);
   try {
     await saveFields(day, { food_path: null, food_thumb: null });
@@ -1218,6 +1322,7 @@ function weighCard(day, row, urls) {
 async function addWeighPhoto(day, camera) {
   const [file] = await pickImages({ camera });
   if (!file) return;
+  finishSwap();
   const draft = state.draft;
   const setStatus = (text) => {
     draft.weighStatus = text;
@@ -1244,8 +1349,12 @@ async function addWeighPhoto(day, camera) {
     const old = rowFor(day);
     const paths = await api.uploadPhoto(day, "pesee", full, thumb, round ? "rond" : "");
     await saveFields(day, { weigh_path: paths.path, weigh_thumb: paths.thumb });
-    api.removeFiles("pesee", [old?.weigh_path, old?.weigh_thumb]).catch(() => {});
-    toast(screen ? "Photo recadrée sur l'écran et enregistrée ✓" : "Photo de la balance enregistrée ✓");
+    if (old?.weigh_path) {
+      const swap = { day, kind: "pesee", old: [old.weigh_path, old.weigh_thumb], fresh: [paths.path, paths.thumb] };
+      offerUndo(swap, screen ? "Photo recadrée et remplacée" : "Photo remplacée");
+    } else {
+      toast(screen ? "Photo recadrée sur l'écran et enregistrée ✓" : "Photo de la balance enregistrée ✓");
+    }
   } catch (err) {
     toast(errorMessage(err), "error");
   } finally {
@@ -1288,6 +1397,7 @@ async function saveWeight(day) {
 
 async function deleteWeigh(day) {
   if (!confirm("Supprimer la pesée (photo et poids) ?")) return;
+  finishSwap();
   const old = rowFor(day);
   try {
     await saveFields(day, { weight_kg: null, weigh_path: null, weigh_thumb: null });
@@ -1309,12 +1419,21 @@ const IS_DEPLOYED = !APP_BUILD.startsWith("__");
 const UPDATE_CHECK_MS = 30 * 60 * 1000;
 let updateReady = false;
 
-/** Vrai quand recharger la page ne fait rien perdre (pas d'envoi, de brouillon ni de saisie en cours). */
+/**
+ * Vrai quand recharger la page ne fait rien perdre (pas d'envoi, de brouillon, de saisie
+ * ni de remplacement de photo encore annulable).
+ */
 function isIdle() {
   const { busy, recipe, weigh } = state.draft;
   const typing = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
   return (
-    !busy.size && !pickerOpen && !typing && recipe.mode === "idle" && !weigh.editing && !weigh.weight
+    !busy.size &&
+    !pickerOpen &&
+    !typing &&
+    !pendingSwap &&
+    recipe.mode === "idle" &&
+    !weigh.editing &&
+    !weigh.weight
   );
 }
 
@@ -1384,6 +1503,7 @@ function setSignedIn(signedIn) {
   $("#login").hidden = true;
   $("#shell").hidden = false;
   route();
+  if (signedIn) finishStoredRemovals();
 }
 
 function openLogin() {
@@ -1444,7 +1564,10 @@ function wireStaticControls() {
 
   $("#auth-button").addEventListener("click", async () => {
     if (!state.canEdit) openLogin();
-    else if (confirm("Se déconnecter ?")) await api.signOut();
+    else if (confirm("Se déconnecter ?")) {
+      await finishSwap(); // après la déconnexion, la suppression serait refusée
+      await api.signOut();
+    }
   });
   api.onSignedOut(() => {
     state.days.clear();

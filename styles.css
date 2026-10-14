@@ -968,6 +968,9 @@ body:has(#lightbox:not([hidden])) {
   opacity: 0;
   transition: transform 0.25s, opacity 0.25s;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
 }
 #toast.show {
   transform: translate(-50%, 0);
@@ -976,4 +979,16 @@ body:has(#lightbox:not([hidden])) {
 #toast.error {
   background: var(--danger);
   color: #fff;
+}
+/* Bouton du message (« Annuler ») : seul endroit cliquable du message. */
+#toast button {
+  flex: none;
+  min-height: 36px;
+  padding: 0.3rem 0.9rem;
+  border-color: currentColor;
+  background: transparent;
+  font-weight: 600;
+}
+#toast.show button {
+  pointer-events: auto;
 }

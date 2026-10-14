@@ -87,6 +87,7 @@ Changer une clé (par exemple une nouvelle clé Gemini) : mets à jour le secret
 ## Au quotidien
 
 - **Repas** : 📷 *Prendre une photo*. C'est enregistré tout de suite.
+- **Photo remplacée par erreur** (repas ou balance) : touche *Annuler* dans le message « Photo remplacée », affiché 10 secondes. L'ancienne photo revient ; passé ce délai, elle est supprimée pour de bon.
 - **Recette** : 📷 *Photographier la recette*. Si la liste d'ingrédients est sur l'autre face, ajoute-la avec *Autre page*, puis ✨ *Lire la recette*. Relis le résultat, corrige si besoin, puis *Enregistrer la recette*.
 - **Si Gemini ne répond pas** (surchargé, quota atteint…) : l'appli le signale et met en avant ↗️ *Envoyer à une app IA*. Le menu de partage du téléphone s'ouvre : choisis ChatGPT (ou Claude, Gemini…). La photo part avec la consigne, qui demande la recette en français puis en anglais, dans un format précis. La consigne est aussi copiée, au cas où l'app ne la reprendrait pas. Dans l'app, copie toute la réponse, reviens sur le site, 📋 *Coller*, puis *Remplir la recette*. Le gras, les titres, les emojis et les séparateurs de ChatGPT sont bien gérés.
 - Tu peux aussi coller une réponse d'IA obtenue autrement (📋 *Coller une réponse d'IA*) ou écrire la recette à la main.

@@ -93,12 +93,14 @@ export async function uploadPhoto(day, kind, full, thumb, variant = "") {
   return { path, thumb: thumbPath };
 }
 
+/** Supprime des photos ; renvoie false si la suppression a échoué (hors ligne, par exemple). */
 export async function removeFiles(kind, paths) {
   const list = paths.filter(Boolean);
-  if (!list.length) return;
-  await supabase.storage.from(bucketFor(kind)).remove(list);
+  if (!list.length) return true;
+  const { error } = await supabase.storage.from(bucketFor(kind)).remove(list);
   // Les toutes premières photos de balance étaient rangées avec celles des repas.
   if (kind === "pesee") await supabase.storage.from(MEAL_BUCKET).remove(list);
+  return !error;
 }
 
 /** Adresses publiques des photos ; `kind` : "repas" ou "pesee". */
