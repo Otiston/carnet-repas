@@ -45,9 +45,12 @@ jobs:
           fi
           echo "PROJECT_REF=$ref" >> "$GITHUB_ENV"
 
+      # Version figée : la v3 du CLI (novembre 2026) vise la base locale par défaut et demande
+      # --remote et --yes à chaque commande. Passer en v3 = suivre le guide de migration :
+      # https://supabase.com/docs/guides/local-development/cli/migrating-to-v3
       - uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: 2.122.1
 
       - name: Relier le projet Supabase
         run: supabase link --project-ref "$PROJECT_REF"
