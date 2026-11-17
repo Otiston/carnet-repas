@@ -43,6 +43,8 @@ Supabase (gratuit)
 | `manifest.webmanifest`, `icons/` | Installation comme application sur le téléphone |
 | `supabase/migrations/` | Structure de la base, appliquée automatiquement |
 | `supabase/functions/lire-recette/index.ts` | La fonction qui envoie la photo de recette à Gemini |
+| `supabase/functions/cadrer-balance/index.ts` | La fonction qui demande à Gemini où est l'écran de la balance |
+| `supabase/functions/_shared/gemini.ts` | L'appel à Gemini commun aux deux : liste des modèles gratuits essayés tour à tour |
 | `.github/workflows/deploiement.yml` | Le déploiement automatique |
 
 ---
@@ -113,6 +115,6 @@ Ouvre <http://localhost:8000>. En local, le bas de page affiche « Version local
 | Déploiement rouge à « Site web » | Vérifie que **Settings** → **Pages** → **Source** est bien sur **GitHub Actions** (étape 6). |
 | « Email ou mot de passe incorrect » | Vérifie que l'utilisateur est bien confirmé (Authentication → Users). |
 | « Clé Gemini invalide » | Corrige le secret `GEMINI_API_KEY` dans GitHub, puis **Run workflow**. |
-| « Gemini est surchargé » ou « Quota gratuit de Gemini atteint » | Les 3 modèles gratuits essayés à la suite étaient saturés. Réessaie dans quelques minutes, ou passe par ↗️ *Envoyer à une app IA*. |
-| Les erreurs Gemini reviennent tous les jours | Google a peut-être retiré un modèle : demande à Claude de mettre à jour la liste `MODELS` dans `supabase/functions/lire-recette/index.ts` (modèles *Flash* gratuits sur <https://ai.google.dev/gemini-api/docs/pricing>). |
+| « Gemini est surchargé » ou « Quota gratuit de Gemini atteint » | Les 5 modèles gratuits (3 *Flash-Lite* compris, chacun avec son propre quota) étaient saturés, même après une seconde tentative. Réessaie dans quelques minutes, ou passe par ↗️ *Envoyer à une app IA*. |
+| Les erreurs Gemini reviennent tous les jours, ou « Erreur Gemini : … not found » | Google a peut-être retiré un modèle : demande à Claude de mettre à jour la liste `MODELS` dans `supabase/functions/_shared/gemini.ts` (modèles gratuits sur <https://aistudio.google.com/docs/pricing>). Le détail de chaque essai (modèle, code d'erreur) est dans Supabase → **Edge Functions** → la fonction → **Logs**. |
 | Le projet Supabase est « paused » | Les projets gratuits se mettent en pause après 7 jours sans utilisation : clique **Restore** dans le tableau de bord. |

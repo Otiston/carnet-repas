@@ -2,19 +2,37 @@
 // lecture des photos envoyées par l'appli, appel avec repli sur plusieurs modèles, réponse JSON.
 // La clé reste côté serveur (secret GEMINI_API_KEY).
 
-// Modèles de l'offre gratuite, essayés dans l'ordre : si l'un est surchargé, épuisé
-// ou retiré, on passe au suivant. Liste à jour sur https://ai.google.dev/gemini-api/docs/pricing.
-const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
-// Temps maximum par modèle : l'ensemble reste sous la limite de 150 s des Edge Functions.
-const ATTEMPT_TIMEOUT_MS = 40_000;
-// Erreurs pour lesquelles un autre modèle a des chances de répondre.
-const TRY_NEXT = new Set([404, 408, 429, 500, 502, 503, 504]);
+// Modèles de l'offre gratuite, essayés dans l'ordre. Chacun a son propre quota gratuit : si l'un
+// est surchargé, épuisé ou retiré, on passe au suivant. Les « Flash » lisent le mieux ; les
+// « Flash-Lite », moins demandés, prennent le relais. Liste à jour (modèles marqués
+// « Free of charge ») sur https://aistudio.google.com/docs/pricing.
+const MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-flash-lite",
+];
+// Temps maximum par modèle, et pour l'ensemble : les Edge Functions sont coupées à 150 s.
+const ATTEMPT_TIMEOUT_MS = 45_000;
+const TOTAL_BUDGET_MS = 135_000;
+// En dessous, inutile de lancer un nouvel essai.
+const MIN_ATTEMPT_MS = 8_000;
+// Erreurs passagères (surcharge, panne, délai dépassé) : après une courte pause, on redonne
+// une seconde chance aux modèles qui les ont renvoyées.
+const TRANSIENT = new Set([408, 500, 502, 503, 504]);
+const RETRY_PAUSE_MS = 3_000;
 
 /** Erreur à renvoyer telle quelle à l'appli (message en français pour l'utilisateur). */
 export class GeminiError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
   }
+}
+
+/** Échec d'un seul modèle : on essaie le suivant. */
+class ModelFailure {
+  constructor(readonly status: number, readonly message: string) {}
 }
 
 export function errorResponse(status: number, message: string) {
@@ -54,54 +72,83 @@ export async function askGemini(images: string[], prompt: string, schema: object
     generationConfig: { responseMimeType: "application/json", responseJsonSchema: schema },
   });
 
-  // deno-lint-ignore no-explicit-any
-  let body: any = null;
-  let lastStatus = 0;
-  for (const model of MODELS) {
-    let res: Response;
-    try {
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: request,
-        signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
-      });
-    } catch (err) {
-      console.error("Gemini", model, "sans réponse :", String(err));
-      lastStatus = 504;
-      continue;
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  const failures: ModelFailure[] = [];
+  let models = MODELS;
+  for (let round = 1; round <= 2 && models.length > 0; round++) {
+    if (round === 2) {
+      if (deadline - Date.now() < RETRY_PAUSE_MS + MIN_ATTEMPT_MS) break;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
     }
-    const json = await res.json().catch(() => null);
-    if (res.ok) {
-      body = json;
-      break;
+    const busy: string[] = []; // modèles en panne passagère, retentés au second tour
+    for (const model of models) {
+      const timeLeft = deadline - Date.now();
+      if (timeLeft < MIN_ATTEMPT_MS) break;
+      try {
+        return await callModel(model, apiKey, request, Math.min(ATTEMPT_TIMEOUT_MS, timeLeft));
+      } catch (err) {
+        if (!(err instanceof ModelFailure)) throw err;
+        console.error(`Gemini ${model} (essai ${round}) : ${err.status} ${err.message}`);
+        failures.push(err);
+        if (TRANSIENT.has(err.status)) busy.push(model);
+      }
     }
+    models = busy;
+  }
+  throw finalError(failures);
+}
+
+/** Un essai sur un modèle : renvoie le JSON lu, lève ModelFailure (modèle suivant) ou GeminiError (arrêt). */
+async function callModel(model: string, apiKey: string, request: string, timeoutMs: number): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: request,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    throw new ModelFailure(504, `sans réponse (${String(err)})`);
+  }
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
     const detail = json?.error?.message ?? `HTTP ${res.status}`;
-    console.error("Gemini", model, res.status, detail);
-    lastStatus = res.status;
+    // Clé refusée : tous les modèles la refuseront, inutile d'insister.
     if (res.status === 401 || res.status === 403 || (res.status === 400 && /api key/i.test(detail))) {
+      console.error(`Gemini ${model} : ${res.status} ${detail}`);
       throw new GeminiError(500, "Clé Gemini invalide : vérifie le secret GEMINI_API_KEY.");
     }
-    if (!TRY_NEXT.has(res.status)) throw new GeminiError(502, `Erreur Gemini : ${detail}`);
-  }
-  if (!body) {
-    throw lastStatus === 429
-      ? new GeminiError(429, "Quota gratuit de Gemini atteint pour le moment, réessaie plus tard.")
-      : new GeminiError(503, "Gemini est surchargé en ce moment, réessaie dans quelques minutes.");
+    throw new ModelFailure(res.status, detail);
   }
 
-  const candidate = body.candidates?.[0];
+  const candidate = json?.candidates?.[0];
   const text = (candidate?.content?.parts ?? [])
     .filter((part: { text?: string; thought?: boolean }) => part.text && !part.thought)
     .map((part: { text: string }) => part.text)
     .join("");
   if (!text) {
-    const reason = body.promptFeedback?.blockReason ?? candidate?.finishReason ?? "réponse vide";
-    throw new GeminiError(422, `Gemini n'a pas pu lire cette photo (${reason}). Réessaie avec une autre photo.`);
+    const reason = json?.promptFeedback?.blockReason ?? candidate?.finishReason ?? "réponse vide";
+    throw new ModelFailure(422, `Gemini n'a pas pu lire cette photo (${reason}). Réessaie avec une autre photo.`);
   }
   try {
     return JSON.parse(text);
   } catch {
-    throw new GeminiError(502, "Réponse de Gemini illisible, réessaie.");
+    throw new ModelFailure(422, "Réponse de Gemini illisible, réessaie.");
   }
+}
+
+/** Message pour l'appli quand aucun modèle n'a répondu. */
+function finalError(failures: ModelFailure[]): GeminiError {
+  const statuses = failures.map((f) => f.status);
+  if (statuses.length === 0 || statuses.some((s) => TRANSIENT.has(s))) {
+    return new GeminiError(503, "Gemini est surchargé en ce moment, réessaie dans quelques minutes.");
+  }
+  if (statuses.includes(429)) {
+    return new GeminiError(429, "Quota gratuit de Gemini atteint pour le moment, réessaie plus tard.");
+  }
+  const unread = failures.find((f) => f.status === 422);
+  if (unread) return new GeminiError(422, unread.message);
+  // Par exemple tous les modèles retirés (404) : le détail aide à mettre la liste à jour.
+  return new GeminiError(502, `Erreur Gemini : ${failures[failures.length - 1].message}`);
 }
